@@ -14,7 +14,6 @@
   --done-soft: #e6f4e9;
   --warn: #b85f00;
   --warn-soft: #fff1dc;
-  --on-warn: #ffffff;
   --danger: #d6453d;
   --sat: #2f74c0;
   --radius: 16px;
@@ -38,7 +37,6 @@
     --done-soft: #1a3020;
     --warn: #f0a640;
     --warn-soft: #382a12;
-    --on-warn: #1f1403;
     --danger: #ff6b62;
     --sat: #6aa8ff;
     color-scheme: dark;
@@ -173,14 +171,8 @@ body:has(input:focus) .tabbar { visibility: hidden; }
   background: var(--card); text-align: left;
 }
 .cell.has-must { background: color-mix(in srgb, var(--accent) 7%, var(--card)); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
-.cell.conflict { background: var(--warn-soft); border-color: var(--warn); }
 .cell.past { background: transparent; border-style: dashed; opacity: .45; }
 .cell .plus { margin: auto; color: var(--muted); opacity: .4; font-size: 22px; font-weight: 300; line-height: 1; }
-.cell .flag {
-  position: absolute; top: -7px; right: -5px; display: grid; place-items: center;
-  width: 19px; height: 19px; border-radius: 50%; background: var(--warn); color: var(--on-warn);
-  font-size: 12px; font-weight: 900; box-shadow: 0 0 0 2px var(--bg);
-}
 .chip {
   display: block; max-width: 100%; padding: 2px 8px; border-radius: 999px;
   font-size: 12px; font-weight: 700; line-height: 1.45;
@@ -303,7 +295,7 @@ html:has(.sheet[open]) { overflow: hidden; }
 .sheet .when { margin-top: 2px; font-size: 13px; color: var(--muted); }
 .who-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
 .who-list .chip { padding: 4px 11px; font-size: 13px; }
-.warn { margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 700; }
+.share-note { margin: -4px 0 14px; font-size: 13px; color: var(--muted); }
 .options { display: grid; gap: 10px; margin-bottom: 12px; }
 .opt {
   display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 12px 16px;

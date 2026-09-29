@@ -6,7 +6,7 @@ const SLOTS = [
   { label: '夜', time: '18時〜', end: 24 },
 ];
 const LEVEL = { must: '絶対使う', maybe: '使うかも' };
-const LEVEL_NOTE = { must: 'この時間は確実に使う', maybe: '空いていれば使う予定' };
+const LEVEL_NOTE = { must: 'この時間に必ず使う', maybe: '使う可能性がある' };
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const TABS = ['laundry', 'chores', 'settings'];
 const KEY = { me: 'homewood.me', hint: 'homewood.hint-dismissed', base: 'homewood.base', cache: 'homewood.cache' };
@@ -294,7 +294,7 @@ function laundryHTML() {
       const list = (byCell[`${key}|${s}`] ?? []).sort(byLevel);
       const past = key < t || (isToday && now.getHours() >= slot.end);
       const musts = list.filter((r) => r.level === 'must').length;
-      const cls = ['cell', past && 'past', musts && 'has-must', musts > 1 && 'conflict'].filter(Boolean).join(' ');
+      const cls = ['cell', past && 'past', musts && 'has-must'].filter(Boolean).join(' ');
       const chips = list
         .map(
           (r) =>
@@ -307,7 +307,7 @@ function laundryHTML() {
           ? '終了'
           : '空き';
       rows += `<button class="${cls}" data-action="slot" data-date="${key}" data-slot="${s}" ${past ? 'disabled' : ''}
-        aria-label="${esc(`${mdw(d)} ${slot.label}：${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}${musts > 1 ? '<span class="flag" aria-hidden="true">!</span>' : ''}</button>`;
+        aria-label="${esc(`${mdw(d)} ${slot.label}：${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
     });
   }
 
@@ -458,7 +458,7 @@ function settingsHTML() {
 function openSlot(date, slot) {
   const list = state.reservations.filter((r) => r.date === date && r.slot === slot).sort(byLevel);
   const mine = list.find((r) => r.member_id === state.me.id);
-  const othersMust = list.filter((r) => r.level === 'must' && r.member_id !== state.me.id);
+  const others = list.filter((r) => r.member_id !== state.me.id);
   const d = new Date(`${date}T00:00:00`);
 
   const who = list.length
@@ -480,7 +480,7 @@ function openSlot(date, slot) {
     <h3 id="sheet-title" tabindex="-1" autofocus>${mdw(d)} ${SLOTS[slot].label}</h3>
     <div class="when">${SLOTS[slot].time}</div>
     <div class="who-list">${who}</div>
-    ${othersMust.length ? `<div class="warn">⚠ ${othersMust.map((r) => esc(memberName(r.member_id))).join('、')}さんが「絶対使う」で予約しています</div>` : ''}
+    ${others.length ? '<p class="share-note">同じ枠に何人でも予約できます</p>' : ''}
     <div class="options">${options}</div>
     ${mine ? '<button class="btn danger block" data-action="reserve" data-level="">予約を取り消す</button>' : ''}
     <button class="btn ghost block" data-action="close">閉じる</button>`;
