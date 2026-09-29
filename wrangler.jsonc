@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "homewood",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [
+    {
+      // database_id は書かない: 初回の `wrangler deploy` がこの名前で D1 を自動作成し、以降は名前で接続する
+      "binding": "DB",
+      "database_name": "homewood"
+    }
+  ]
+}
