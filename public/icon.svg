@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="116" fill="#3b5bdb"/>
+  <path d="M256 120 388 226v144a20 20 0 0 1-20 20H144a20 20 0 0 1-20-20V226Z" fill="#fff" stroke="#fff" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M170 234h50" stroke="#3b5bdb" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="342" cy="234" r="9" fill="#3b5bdb"/>
+  <clipPath id="door"><circle cx="256" cy="320" r="46"/></clipPath>
+  <circle cx="256" cy="320" r="46" fill="#e6ebff"/>
+  <path clip-path="url(#door)" d="M200 326c14-12 28-12 40 0s28 12 40 0 28-12 40 0V380H200Z" fill="#6f8bf0"/>
+  <circle cx="256" cy="320" r="53" fill="none" stroke="#3b5bdb" stroke-width="14"/>
+</svg>
