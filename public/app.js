@@ -1,15 +1,213 @@
 // homewood — シェアハウス用 洗濯機予約 & 掃除当番（スマホ前提）
 
-const SLOTS = [
-  { label: '午前', time: '〜12時', end: 12 },
-  { label: '午後', time: '12〜18時', end: 18 },
-  { label: '夜', time: '18時〜', end: 24 },
-];
-const LEVEL = { must: '絶対使う', maybe: '使うかも' };
-const LEVEL_NOTE = { must: 'この時間に必ず使う', maybe: '使う可能性がある' };
-const WD = ['日', '月', '火', '水', '木', '金', '土'];
+const SLOT_END = [12, 18, 24]; // 午前 / 午後 / 夜 の終わりの時刻
 const TABS = ['laundry', 'chores', 'settings'];
-const KEY = { me: 'homewood.me', hint: 'homewood.hint-dismissed', base: 'homewood.base', cache: 'homewood.cache' };
+const KEY = {
+  me: 'homewood.me',
+  lang: 'homewood.lang',
+  hint: 'homewood.hint-dismissed',
+  base: 'homewood.base',
+  cache: 'homewood.cache',
+};
+
+/* ---------- 表示言語（日本語がデフォルト） ---------- */
+const I18N = {
+  ja: {
+    langName: '日本語',
+    slots: [
+      ['午前', '〜12時'],
+      ['午後', '12〜18時'],
+      ['夜', '18時〜'],
+    ],
+    level: { must: '絶対使う', maybe: '使うかも' },
+    levelNote: { must: 'この時間に必ず使う', maybe: '使う可能性がある' },
+    wd: ['日', '月', '火', '水', '木', '金', '土'],
+    dayFmt: (md, wd) => `${md}(${wd})`,
+    sep: '、',
+    range: (a, b) => `${a} 〜 ${b}`,
+    colon: '：',
+    tabs: { laundry: '洗濯', chores: '掃除', settings: '設定' },
+    menu: 'メニュー',
+    switchUser: 'ユーザーを切り替える',
+    shareIcon: '共有',
+    moved: '退去済み',
+    netErr: '通信できませんでした。電波を確認してください',
+    httpErr: (s) => `エラーが発生しました (${s})`,
+    installLead: 'ホーム画面に追加',
+    installRest: 'すると、アプリのように開けます。',
+    installHow: (icon, ios) => (ios ? `共有ボタン${icon}→「ホーム画面に追加」` : 'ブラウザのメニュー →「ホーム画面に追加」'),
+    add: '追加',
+    close: '閉じる',
+    offline: 'オフラインです。最後に読み込んだ内容を表示しています',
+    back: '戻る',
+    whoAreYou: 'あなたは誰？',
+    pickNote: '自分の名前をタップしてください。この端末に記憶されます。',
+    noMembers: 'まだ住人がいません。下から追加してください。',
+    addMemberPh: '住人を追加（名前）',
+    memberNameLabel: '住人の名前',
+    prev: (u) => `前の${u}`,
+    next: (u) => `次の${u}`,
+    unitDays: '7日',
+    unitWeek: '週',
+    today: '今日',
+    ended: '終了',
+    free: '空き',
+    laundry: '洗濯機',
+    tapToBook: '枠をタップして予約',
+    weekLabel: (w) => (w === 0 ? '今週' : w === 1 ? '来週' : w === -1 ? '先週' : w < 0 ? `${-w}週前` : `${w}週後`),
+    chores: '掃除当番',
+    until: (d) => `${d}まで`,
+    noAreas: '掃除場所か住人が登録されていません。',
+    goSettings: (link) => `${link}から追加してください。`,
+    allDone: 'ぜんぶ完了 🎉',
+    dueToday: '今日が締め切り',
+    dueTomorrow: '明日が締め切り',
+    dueIn: (n) => `締め切りまであと${n}日`,
+    closed: '締め切り済み',
+    youOff: 'あなたは<b>お休み</b>',
+    yourCount: (n) => `あなたの担当 <b>${n}件</b>`,
+    yourLeft: (n) => `あなたの残り <b>${n}件</b>`,
+    yourDone: 'あなたの担当は<b>完了</b>',
+    doneOf: (a, b) => `${a} / ${b} 完了`,
+    offList: (names) => `お休み: ${names}`,
+    doneOn: (by, date) => `✓ ${by ? `${by}さんが` : ''}${date}に完了`,
+    notDone: '未完了',
+    undo: '取り消す',
+    undoLabel: (n) => `${n}の完了を取り消す`,
+    done: '完了',
+    doneLabel: (n) => `${n}を完了にする`,
+    you: 'あなた',
+    deleteLabel: (n) => `${n}を削除`,
+    none: 'まだありません',
+    settings: '設定',
+    members: '住人',
+    namePh: '名前を入力',
+    areas: '掃除場所',
+    areaPh: '例: Toilet, Entrance',
+    areaNameLabel: '掃除場所の名前',
+    rotation: '当番は住人の登録順で、毎週自動でローテーションします。',
+    language: '表示言語',
+    nobody: 'まだ誰も予約していません',
+    shareNote: '同じ枠に何人でも予約できます',
+    mustNote: (names) => `${names}さんが「絶対使う」予定です。使っても大丈夫です。早めに取り出すなど、少しだけ気づかいを。`,
+    legendNote: '予約は予定の共有です。「絶対使う」の人がいても洗濯機は使えます。',
+    cancelBooking: '予約を取り消す',
+    booked: (l) => `「${l}」で予約しました`,
+    canceled: '予約を取り消しました',
+    saveFail: (m) => `保存できませんでした：${m}`,
+    thanks: 'おつかれさまでした ✨',
+    undone: '完了を取り消しました',
+    confirmDelete: (n, kind) =>
+      `「${n}」を削除しますか？\n${kind === 'members' ? 'この人の洗濯予約も消え、掃除当番のローテーションが変わります。' : 'この場所の完了記録も消えます。'}`,
+    deleted: '削除しました',
+    added: (n) => `「${n}」を追加しました`,
+    loadFail: '読み込めませんでした。',
+    reload: '再読み込み',
+  },
+  en: {
+    langName: 'English',
+    slots: [
+      ['Morning', 'until 12:00'],
+      ['Afternoon', '12:00–18:00'],
+      ['Evening', 'from 18:00'],
+    ],
+    level: { must: 'Definitely', maybe: 'Maybe' },
+    levelNote: { must: 'I will use it in this slot', maybe: 'I might use it' },
+    wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    dayFmt: (md, wd) => `${wd} ${md}`,
+    sep: ', ',
+    range: (a, b) => `${a} – ${b}`,
+    colon: ': ',
+    tabs: { laundry: 'Laundry', chores: 'Cleaning', settings: 'Settings' },
+    menu: 'Menu',
+    switchUser: 'Switch user',
+    shareIcon: 'Share',
+    moved: 'Former resident',
+    netErr: "Couldn't connect. Check your connection.",
+    httpErr: (s) => `Something went wrong (${s})`,
+    installLead: 'Add to Home Screen',
+    installRest: ' to open it like an app.',
+    installHow: (icon, ios) => (ios ? `Share ${icon} → "Add to Home Screen"` : 'Browser menu → "Add to Home screen"'),
+    add: 'Add',
+    close: 'Close',
+    offline: "You're offline. Showing the last loaded data.",
+    back: 'Back',
+    whoAreYou: 'Who are you?',
+    pickNote: 'Tap your name. This device will remember it.',
+    noMembers: 'No residents yet. Add one below.',
+    addMemberPh: 'Add a resident (name)',
+    memberNameLabel: 'Resident name',
+    prev: (u) => `Previous ${u}`,
+    next: (u) => `Next ${u}`,
+    unitDays: '7 days',
+    unitWeek: 'week',
+    today: 'Today',
+    ended: 'Over',
+    free: 'Free',
+    laundry: 'Laundry',
+    tapToBook: 'Tap a slot to book',
+    weekLabel: (w) =>
+      w === 0 ? 'This week' : w === 1 ? 'Next week' : w === -1 ? 'Last week' : w < 0 ? `${-w} weeks ago` : `In ${w} weeks`,
+    chores: 'Cleaning',
+    until: (d) => `due ${d}`,
+    noAreas: 'No cleaning areas or residents yet.',
+    goSettings: (link) => `Add them in ${link}.`,
+    allDone: 'All done 🎉',
+    dueToday: 'Due today',
+    dueTomorrow: 'Due tomorrow',
+    dueIn: (n) => `${n} days left`,
+    closed: 'Closed',
+    youOff: "You're <b>off</b> this week",
+    yourCount: (n) => `Your tasks: <b>${n}</b>`,
+    yourLeft: (n) => `<b>${n}</b> left for you`,
+    yourDone: 'Your tasks are <b>done</b>',
+    doneOf: (a, b) => `${a} / ${b} done`,
+    offList: (names) => `Off: ${names}`,
+    doneOn: (by, date) => `✓ Done${by ? ` by ${by}` : ''} on ${date}`,
+    notDone: 'Not done',
+    undo: 'Undo',
+    undoLabel: (n) => `Mark ${n} as not done`,
+    done: 'Done',
+    doneLabel: (n) => `Mark ${n} as done`,
+    you: 'You',
+    deleteLabel: (n) => `Delete ${n}`,
+    none: 'Nothing yet',
+    settings: 'Settings',
+    members: 'Residents',
+    namePh: 'Name',
+    areas: 'Cleaning areas',
+    areaPh: 'e.g. Toilet, Entrance',
+    areaNameLabel: 'Cleaning area name',
+    rotation: 'Duties rotate every week, in the order residents were added.',
+    language: 'Language',
+    nobody: 'No one has booked yet',
+    shareNote: 'Any number of people can book the same slot',
+    mustNote: (names) => `${names} definitely plans to use it. You can still use it. Just be considerate, like taking your laundry out promptly.`,
+    legendNote: 'Bookings just share plans. You can still use the machine when someone picked "Definitely".',
+    cancelBooking: 'Cancel booking',
+    booked: (l) => `Booked as "${l}"`,
+    canceled: 'Booking canceled',
+    saveFail: (m) => `Couldn't save: ${m}`,
+    thanks: 'Thanks for cleaning ✨',
+    undone: 'Marked as not done',
+    confirmDelete: (n, kind) =>
+      `Delete "${n}"?\n${kind === 'members' ? "Their laundry bookings will be removed and the cleaning rotation will change." : 'Its completion history will be removed.'}`,
+    deleted: 'Deleted',
+    added: (n) => `Added "${n}"`,
+    loadFail: "Couldn't load the app.",
+    reload: 'Reload',
+  },
+};
+let lang = 'ja';
+let t = I18N.ja;
+function setLang(next) {
+  lang = I18N[next] ? next : 'ja';
+  t = I18N[lang];
+  document.documentElement.lang = lang;
+  document.querySelectorAll('#tabs a').forEach((a) => (a.querySelector('span').textContent = t.tabs[a.dataset.tab]));
+  $('#tabs').setAttribute('aria-label', t.menu);
+  $('#me-btn').setAttribute('aria-label', t.switchUser);
+}
 const POLL_MS = 60_000;
 
 const ICON = {
@@ -18,7 +216,7 @@ const ICON = {
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   share:
-    '<svg class="inline-icon" viewBox="0 0 24 24" aria-label="共有"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M7 10H5.5v11h13V10H17"/></svg>',
+    '<svg class="inline-icon" viewBox="0 0 24 24" role="img"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M7 10H5.5v11h13V10H17"/></svg>',
 };
 
 const $ = (s) => document.querySelector(s);
@@ -57,9 +255,9 @@ const today = () => {
 };
 const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
 const md = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
-const mdw = (d) => `${md(d)}(${WD[d.getDay()]})`;
+const mdw = (d) => t.dayFmt(md(d), t.wd[d.getDay()]);
 const weekIndex = (mon) => Math.floor(Date.UTC(mon.getFullYear(), mon.getMonth(), mon.getDate()) / 864e5 / 7);
-const memberName = (id) => state.members.find((m) => m.id === id)?.name ?? '退去済み';
+const memberName = (id) => state.members.find((m) => m.id === id)?.name ?? t.moved;
 const byLevel = (a, b) => (a.level === 'maybe') - (b.level === 'maybe') || a.member_id - b.member_id;
 const parseUtc = (s) => new Date(`${s.replace(' ', 'T')}Z`);
 const nowUtc = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -110,14 +308,14 @@ async function api(path, opts = {}) {
   try {
     res = await fetch(`/api${path}`, {
       ...opts,
-      headers: opts.body ? { 'content-type': 'application/json' } : undefined,
+      headers: { 'x-lang': lang, ...(opts.body ? { 'content-type': 'application/json' } : {}) },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
   } catch {
-    throw new Error('通信できませんでした。電波を確認してください');
+    throw new Error(t.netErr);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `エラーが発生しました (${res.status})`);
+  if (!res.ok) throw new Error(data.error || t.httpErr(res.status));
   return data;
 }
 
@@ -206,20 +404,21 @@ let installEvent = null;
 const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
 const isTouch = () => matchMedia('(pointer: coarse)').matches;
-const installHow = () => (isIOS() ? `共有ボタン${ICON.share}→「ホーム画面に追加」` : 'ブラウザのメニュー →「ホーム画面に追加」');
-const installText = () => `ホーム画面に追加すると、アプリのように開けます。${installEvent ? '' : installHow()}`;
+const shareIcon = () => ICON.share.replace('role="img"', `role="img" aria-label="${t.shareIcon}"`);
+const installHow = () => t.installHow(shareIcon(), isIOS());
+const installText = () => `${t.installLead}${t.installRest}${installEvent ? '' : ` ${installHow()}`}`;
 
 function hintHTML() {
   if (isStandalone() || !isTouch() || storage((s) => s.getItem(KEY.hint))) return '';
   return `<div class="hint">
-    <div><b>ホーム画面に追加</b>すると、アプリのように開けます。${installEvent ? '' : `<span class="how">${installHow()}</span>`}</div>
-    ${installEvent ? '<button class="btn primary sm" data-action="install">追加</button>' : ''}
-    <button class="x" data-action="dismiss-hint" aria-label="閉じる">${ICON.x}</button>
+    <div><b>${t.installLead}</b>${t.installRest}${installEvent ? '' : `<span class="how">${installHow()}</span>`}</div>
+    ${installEvent ? `<button class="btn primary sm" data-action="install">${t.add}</button>` : ''}
+    <button class="x" data-action="dismiss-hint" aria-label="${t.close}">${ICON.x}</button>
   </div>`;
 }
 
 const noticeHTML = () =>
-  state.offline ? '<div class="notice">オフラインです。最後に読み込んだ内容を表示しています</div>' : '';
+  state.offline ? `<div class="notice">${t.offline}</div>` : '';
 
 /* ---------- render ---------- */
 let lastView = '';
@@ -257,28 +456,41 @@ function pickerHTML() {
     )
     .join('');
   return `<section class="picker">
-    ${state.me ? `<button class="back" data-action="cancel-pick">${ICON.left}戻る</button>` : ''}
-    <h2>あなたは誰？</h2>
-    <p class="muted">自分の名前をタップしてください。この端末に記憶されます。</p>
-    ${people ? `<div class="people">${people}</div>` : '<p class="empty">まだ住人がいません。下から追加してください。</p>'}
+    <div class="picker-top">
+      ${state.me ? `<button class="back" data-action="cancel-pick">${ICON.left}${t.back}</button>` : '<span></span>'}
+      ${langToggleHTML()}
+    </div>
+    <h2>${t.whoAreYou}</h2>
+    <p class="muted">${t.pickNote}</p>
+    ${people ? `<div class="people">${people}</div>` : `<p class="empty">${t.noMembers}</p>`}
     <form class="add" data-form="members">
-      <input name="name" placeholder="住人を追加（名前）" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="住人の名前">
-      <button class="btn">追加</button>
+      <input name="name" placeholder="${t.addMemberPh}" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="${t.memberNameLabel}">
+      <button class="btn">${t.add}</button>
     </form>
   </section>`;
 }
 
+// 日本語 / English の切り替え
+function langToggleHTML() {
+  return `<div class="seg" role="group" aria-label="${t.language}">${Object.keys(I18N)
+    .map(
+      (k) =>
+        `<button type="button" class="${k === lang ? 'on' : ''}" data-action="lang" data-lang="${k}" aria-pressed="${k === lang}">${I18N[k].langName}</button>`,
+    )
+    .join('')}</div>`;
+}
+
 function pagerHTML(action, value, min, max, unit) {
   return `<div class="pager">
-    <button class="icon-btn" data-action="${action}" data-d="-1" ${value <= min ? 'disabled' : ''} aria-label="前の${unit}">${ICON.left}</button>
-    <button class="icon-btn" data-action="${action}" data-d="1" ${value >= max ? 'disabled' : ''} aria-label="次の${unit}">${ICON.right}</button>
+    <button class="icon-btn" data-action="${action}" data-d="-1" ${value <= min ? 'disabled' : ''} aria-label="${t.prev(unit)}">${ICON.left}</button>
+    <button class="icon-btn" data-action="${action}" data-d="1" ${value >= max ? 'disabled' : ''} aria-label="${t.next(unit)}">${ICON.right}</button>
   </div>`;
 }
 
 function laundryHTML() {
   const { from, to } = laundryRange();
   const now = new Date();
-  const t = ymd(now);
+  const todayKey = ymd(now);
   const byCell = {};
   for (const r of state.reservations) (byCell[`${r.date}|${r.slot}`] ??= []).push(r);
 
@@ -286,13 +498,13 @@ function laundryHTML() {
   for (let i = 0; i < 7; i++) {
     const d = addDays(from, i);
     const key = ymd(d);
-    const isToday = key === t;
+    const isToday = key === todayKey;
     const dow = d.getDay();
     rows += `<div class="day ${isToday ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}">
-      ${md(d)}<small>${isToday ? '今日' : WD[dow]}</small></div>`;
-    SLOTS.forEach((slot, s) => {
+      ${md(d)}<small>${isToday ? t.today : t.wd[dow]}</small></div>`;
+    SLOT_END.forEach((end, s) => {
       const list = (byCell[`${key}|${s}`] ?? []).sort(byLevel);
-      const past = key < t || (isToday && now.getHours() >= slot.end);
+      const past = key < todayKey || (isToday && now.getHours() >= end);
       const musts = list.filter((r) => r.level === 'must').length;
       const cls = ['cell', past && 'past', musts && 'has-must'].filter(Boolean).join(' ');
       const chips = list
@@ -302,40 +514,34 @@ function laundryHTML() {
         )
         .join('');
       const said = list.length
-        ? list.map((r) => `${memberName(r.member_id)} ${LEVEL[r.level]}`).join('、')
+        ? list.map((r) => `${memberName(r.member_id)} ${t.level[r.level]}`).join(t.sep)
         : past
-          ? '終了'
-          : '空き';
+          ? t.ended
+          : t.free;
       rows += `<button class="${cls}" data-action="slot" data-date="${key}" data-slot="${s}" ${past ? 'disabled' : ''}
-        aria-label="${esc(`${mdw(d)} ${slot.label}：${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
+        aria-label="${esc(`${mdw(d)} ${t.slots[s][0]}${t.colon}${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
     });
   }
 
   return `${hintHTML()}${noticeHTML()}
     <div class="head">
       <div>
-        <h2>洗濯機</h2>
-        <p class="sub">${mdw(from)} 〜 ${mdw(to)}</p>
+        <h2>${t.laundry}</h2>
+        <p class="sub">${t.range(mdw(from), mdw(to))}</p>
       </div>
-      ${pagerHTML('laundry-week', state.laundryWeek, 0, 3, '7日')}
+      ${pagerHTML('laundry-week', state.laundryWeek, 0, 3, t.unitDays)}
     </div>
     <div class="legend">
-      <span><i class="swatch must"></i>絶対使う</span>
-      <span><i class="swatch maybe"></i>使うかも</span>
-      <span>枠をタップして予約</span>
+      <span><i class="swatch must"></i>${t.level.must}</span>
+      <span><i class="swatch maybe"></i>${t.level.maybe}</span>
+      <span>${t.tapToBook}</span>
     </div>
+    <p class="legend-note">${t.legendNote}</p>
     <div class="grid ${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       <div class="colhead"></div>
-      ${SLOTS.map((s) => `<div class="colhead"><b>${s.label}</b>${s.time}</div>`).join('')}
+      ${t.slots.map(([label, time]) => `<div class="colhead"><b>${label}</b>${time}</div>`).join('')}
       ${rows}
     </div>`;
-}
-
-function weekLabel(w) {
-  if (w === 0) return '今週';
-  if (w === 1) return '来週';
-  if (w === -1) return '先週';
-  return w < 0 ? `${-w}週前` : `${w}週後`;
 }
 
 function choresHTML() {
@@ -346,13 +552,13 @@ function choresHTML() {
   const head = `${noticeHTML()}
     <div class="head">
       <div>
-        <h2>掃除当番<span class="tag">${weekLabel(w)}</span></h2>
-        <p class="sub">${mdw(mon)} 〜 <b>${mdw(sun)}まで</b></p>
+        <h2>${t.chores}<span class="tag">${t.weekLabel(w)}</span></h2>
+        <p class="sub">${t.range(mdw(mon), `<b>${t.until(mdw(sun))}</b>`)}</p>
       </div>
-      ${pagerHTML('chores-week', w, -4, 4, '週')}
+      ${pagerHTML('chores-week', w, -4, 4, t.unitWeek)}
     </div>`;
   if (!rows.length) {
-    return `${head}<div class="card empty">掃除場所か住人が登録されていません。<br><a href="#settings">設定</a>から追加してください。</div>`;
+    return `${head}<div class="card empty">${t.noAreas}<br>${t.goSettings(`<a href="#settings">${t.settings}</a>`)}</div>`;
   }
 
   const doneBy = Object.fromEntries(state.done.map((d) => [d.area_id, d]));
@@ -365,22 +571,22 @@ function choresHTML() {
 
   let deadline = '';
   let deadlineCls = '';
-  if (allDone && w <= 0) [deadline, deadlineCls] = ['ぜんぶ完了 🎉', 'clear'];
+  if (allDone && w <= 0) [deadline, deadlineCls] = [t.allDone, 'clear'];
   else if (w === 0) {
     const left = Math.round((sun - today()) / 864e5);
-    deadline = left === 0 ? '今日が締め切り' : left === 1 ? '明日が締め切り' : `締め切りまであと${left}日`;
+    deadline = left === 0 ? t.dueToday : left === 1 ? t.dueTomorrow : t.dueIn(left);
     deadlineCls = left <= 1 ? 'urgent' : '';
-  } else if (w < 0) [deadline, deadlineCls] = ['締め切り済み', 'urgent'];
+  } else if (w < 0) [deadline, deadlineCls] = [t.closed, 'urgent'];
 
   let myStatus;
-  if (!mine.length) myStatus = 'あなたは<b>お休み</b>';
-  else if (w > 0) myStatus = `あなたの担当 <b>${mine.length}件</b>`;
-  else myStatus = mineLeft ? `あなたの残り <b>${mineLeft}件</b>` : 'あなたの担当は<b>完了</b>';
+  if (!mine.length) myStatus = t.youOff;
+  else if (w > 0) myStatus = t.yourCount(mine.length);
+  else myStatus = mineLeft ? t.yourLeft(mineLeft) : t.yourDone;
 
   const summary = `<div class="card summary">
-    <div class="row"><b>${doneCount} / ${rows.length} 完了</b><span class="deadline ${deadlineCls}">${deadline}</span></div>
+    <div class="row"><b>${t.doneOf(doneCount, rows.length)}</b><span class="deadline ${deadlineCls}">${deadline}</span></div>
     <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${rows.length}" aria-valuenow="${doneCount}"><i style="width:${(doneCount / rows.length) * 100}%"></i></div>
-    <div class="meta"><span>${myStatus}</span>${off.length ? `<span>お休み: ${off.map((m) => esc(m.name)).join('、')}</span>` : ''}</div>
+    <div class="meta"><span>${myStatus}</span>${off.length ? `<span>${t.offList(off.map((m) => esc(m.name)).join(t.sep))}</span>` : ''}</div>
   </div>`;
 
   const cards = rows
@@ -389,20 +595,20 @@ function choresHTML() {
       const isMine = member.id === state.me.id;
       let note = '';
       if (done) {
-        const by = done.member_id !== member.id ? `${esc(memberName(done.member_id))}さんが` : '';
-        note = `<div class="note">✓ ${by}${md(parseUtc(done.done_at))}に完了</div>`;
-      } else if (w < 0) note = '<div class="note late">未完了</div>';
+        const by = done.member_id !== member.id ? esc(memberName(done.member_id)) : '';
+        note = `<div class="note">${t.doneOn(by, md(parseUtc(done.done_at)))}</div>`;
+      } else if (w < 0) note = `<div class="note late">${t.notDone}</div>`;
 
       let btn = '';
       if (w <= 0) {
         btn = done
-          ? `<button class="btn undo" data-action="chore" data-area="${area.id}" data-done="0" aria-label="${esc(area.name)}の完了を取り消す">取り消す</button>`
-          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(area.name)}を完了にする">完了</button>`;
+          ? `<button class="btn undo" data-action="chore" data-area="${area.id}" data-done="0" aria-label="${esc(t.undoLabel(area.name))}">${t.undo}</button>`
+          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(t.doneLabel(area.name))}">${t.done}</button>`;
       }
       return `<div class="card chore ${isMine ? 'mine' : ''} ${done ? 'is-done' : ''} ${state.justDone === area.id ? 'pop' : ''}">
         <div class="body">
           <div class="area">${esc(area.name)}</div>
-          <div class="who">${avatar(member)}${esc(member.name)}${isMine ? '<span class="badge">あなた</span>' : ''}</div>
+          <div class="who">${avatar(member)}${esc(member.name)}${isMine ? `<span class="badge">${t.you}</span>` : ''}</div>
           ${note}
         </div>
         ${btn}
@@ -419,39 +625,43 @@ function settingsHTML() {
       ? `<ul class="list">${items
           .map(
             (x) =>
-              `<li><span class="li-name">${withAvatar ? avatar(x) : ''}${esc(x.name)}</span><button class="del" data-action="delete" data-kind="${kind}" data-id="${x.id}" aria-label="${esc(x.name)}を削除">${ICON.x}</button></li>`,
+              `<li><span class="li-name">${withAvatar ? avatar(x) : ''}${esc(x.name)}</span><button class="del" data-action="delete" data-kind="${kind}" data-id="${x.id}" aria-label="${esc(t.deleteLabel(x.name))}">${ICON.x}</button></li>`,
           )
           .join('')}</ul>`
-      : '<p class="muted small">まだありません</p>';
+      : `<p class="muted small">${t.none}</p>`;
 
   const install = isStandalone()
     ? ''
     : `<section class="card">
-        <h3>ホーム画面に追加</h3>
+        <h3>${t.installLead}</h3>
         <p class="small" style="margin:6px 0 ${installEvent ? '12px' : '0'}">${installText()}</p>
-        ${installEvent ? '<button class="btn primary" data-action="install">ホーム画面に追加</button>' : ''}
+        ${installEvent ? `<button class="btn primary" data-action="install">${t.installLead}</button>` : ''}
       </section>`;
 
-  return `<div class="head"><div><h2>設定</h2></div></div>
+  return `<div class="head"><div><h2>${t.settings}</h2></div></div>
+    <section class="card lang-card">
+      <h3>${t.language} / Language</h3>
+      ${langToggleHTML()}
+    </section>
     <section class="card">
-      <h3>住人</h3>
+      <h3>${t.members}</h3>
       ${list(state.members, 'members', true)}
       <form class="add" data-form="members">
-        <input name="name" placeholder="名前を入力" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="住人の名前">
-        <button class="btn">追加</button>
+        <input name="name" placeholder="${t.namePh}" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="${t.memberNameLabel}">
+        <button class="btn">${t.add}</button>
       </form>
     </section>
     <section class="card">
-      <h3>掃除場所</h3>
+      <h3>${t.areas}</h3>
       ${list(state.areas, 'areas', false)}
       <form class="add" data-form="areas">
-        <input name="name" placeholder="例: Toilet, Entrance" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="掃除場所の名前">
-        <button class="btn">追加</button>
+        <input name="name" placeholder="${t.areaPh}" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="${t.areaNameLabel}">
+        <button class="btn">${t.add}</button>
       </form>
-      <p class="muted small note-p">当番は住人の登録順で、毎週自動でローテーションします。</p>
+      <p class="muted small note-p">${t.rotation}</p>
     </section>
     ${install}
-    <button class="btn ghost block" data-action="switch">ユーザーを切り替える</button>`;
+    <button class="btn ghost block" data-action="switch">${t.switchUser}</button>`;
 }
 
 /* ---------- 洗濯機の予約シート ---------- */
@@ -459,31 +669,38 @@ function openSlot(date, slot) {
   const list = state.reservations.filter((r) => r.date === date && r.slot === slot).sort(byLevel);
   const mine = list.find((r) => r.member_id === state.me.id);
   const others = list.filter((r) => r.member_id !== state.me.id);
+  const othersMust = others.filter((r) => r.level === 'must');
   const d = new Date(`${date}T00:00:00`);
 
   const who = list.length
-    ? list.map((r) => `<span class="chip ${r.level}">${esc(memberName(r.member_id))}・${LEVEL[r.level]}</span>`).join('')
-    : '<span class="muted small">まだ誰も予約していません</span>';
+    ? list.map((r) => `<span class="chip ${r.level}">${esc(memberName(r.member_id))} · ${t.level[r.level]}</span>`).join('')
+    : `<span class="muted small">${t.nobody}</span>`;
 
   const options = ['must', 'maybe']
     .map((level) => {
       const on = mine?.level === level;
       return `<button class="opt ${level} ${on ? 'selected' : ''}" data-action="reserve" data-level="${level}" aria-pressed="${on}">
         <i class="swatch ${level}" aria-hidden="true"></i>
-        <span><b>${LEVEL[level]}</b><small>${LEVEL_NOTE[level]}</small></span>
+        <span><b>${t.level[level]}</b><small>${t.levelNote[level]}</small></span>
         ${on ? `<i class="tick" aria-hidden="true">${ICON.check}</i>` : ''}
       </button>`;
     })
     .join('');
 
   $('#sheet-body').innerHTML = `
-    <h3 id="sheet-title" tabindex="-1" autofocus>${mdw(d)} ${SLOTS[slot].label}</h3>
-    <div class="when">${SLOTS[slot].time}</div>
+    <h3 id="sheet-title" tabindex="-1" autofocus>${mdw(d)} ${t.slots[slot][0]}</h3>
+    <div class="when">${t.slots[slot][1]}</div>
     <div class="who-list">${who}</div>
-    ${others.length ? '<p class="share-note">同じ枠に何人でも予約できます</p>' : ''}
+    ${
+      othersMust.length
+        ? `<p class="share-note must-note">${t.mustNote(othersMust.map((r) => esc(memberName(r.member_id))).join(t.sep))}</p>`
+        : others.length
+          ? `<p class="share-note">${t.shareNote}</p>`
+          : ''
+    }
     <div class="options">${options}</div>
-    ${mine ? '<button class="btn danger block" data-action="reserve" data-level="">予約を取り消す</button>' : ''}
-    <button class="btn ghost block" data-action="close">閉じる</button>`;
+    ${mine ? `<button class="btn danger block" data-action="reserve" data-level="">${t.cancelBooking}</button>` : ''}
+    <button class="btn ghost block" data-action="close">${t.close}</button>`;
   sheet.dataset.date = date;
   sheet.dataset.slot = slot;
   sheet.showModal();
@@ -503,7 +720,7 @@ async function reserve(level) {
   state.reservations = level ? [...rest, { date, slot, member_id: state.me.id, level }] : rest;
   render();
   buzz();
-  toast(level ? `「${LEVEL[level]}」で予約しました` : '予約を取り消しました');
+  toast(level ? t.booked(t.level[level]) : t.canceled);
   try {
     await api('/laundry', { method: 'PUT', body: { date, slot, member_id: state.me.id, level: level || null } });
     if (src) cache.set(src.key, state.reservations);
@@ -512,7 +729,7 @@ async function reserve(level) {
       state.reservations = prev;
       render();
     }
-    toast(`保存できませんでした：${e.message}`);
+    toast(t.saveFail(e.message));
   }
 }
 
@@ -526,7 +743,7 @@ async function toggleChore(areaId, done) {
   render();
   state.justDone = null;
   buzz();
-  toast(done ? 'おつかれさまでした ✨' : '完了を取り消しました');
+  toast(done ? t.thanks : t.undone);
   try {
     await api('/chores', { method: 'PUT', body: { week, area_id: areaId, member_id: state.me.id, done } });
     if (src) cache.set(src.key, state.done);
@@ -535,7 +752,7 @@ async function toggleChore(areaId, done) {
       state.done = prev;
       render();
     }
-    toast(`保存できませんでした：${e.message}`);
+    toast(t.saveFail(e.message));
   }
 }
 
@@ -572,6 +789,11 @@ document.addEventListener('click', (e) => {
     state.picking = false;
     return run(() => show(state.tab));
   }
+  if (a === 'lang') {
+    setLang(el.dataset.lang);
+    storage((s) => s.setItem(KEY.lang, lang));
+    return render();
+  }
   if (a === 'slot') return openSlot(el.dataset.date, Number(el.dataset.slot));
   if (a === 'close') return sheet.close();
   if (a === 'reserve') return reserve(el.dataset.level);
@@ -594,16 +816,12 @@ document.addEventListener('click', (e) => {
     const kind = el.dataset.kind;
     const id = Number(el.dataset.id);
     const item = state[kind].find((x) => x.id === id);
-    const note =
-      kind === 'members'
-        ? 'この人の洗濯予約も消え、掃除当番のローテーションが変わります。'
-        : 'この場所の完了記録も消えます。';
-    if (!confirm(`「${item.name}」を削除しますか？\n${note}`)) return;
+    if (!confirm(t.confirmDelete(item.name, kind))) return;
     return run(async () => {
       await api(`/${kind}/${id}`, { method: 'DELETE' });
       await loadBase();
       await show(state.tab);
-      toast('削除しました');
+      toast(t.deleted);
     });
   }
 });
@@ -620,7 +838,7 @@ document.addEventListener('submit', (e) => {
     state[kind].push(row);
     storage((s) => s.setItem(KEY.base, JSON.stringify({ members: state.members, areas: state.areas })));
     render();
-    toast(`「${row.name}」を追加しました`);
+    toast(t.added(row.name));
     // 続けて追加できるように同じ入力欄へ戻す
     view.querySelector(`[data-form="${kind}"] input`)?.focus();
   });
@@ -701,6 +919,7 @@ window.addEventListener('appinstalled', () => {
 
 /* ---------- boot ---------- */
 (async function boot() {
+  setLang(storage((s) => s.getItem(KEY.lang)) ?? 'ja');
   const tab = location.hash.slice(1);
   const cachedBase = storage((s) => JSON.parse(s.getItem(KEY.base)));
   try {
@@ -718,7 +937,7 @@ window.addEventListener('appinstalled', () => {
       state.offline = true;
       render();
     } else {
-      view.innerHTML = `<div class="empty">読み込めませんでした。<br>${esc(e.message)}<br><br><button class="btn primary" onclick="location.reload()">再読み込み</button></div>`;
+      view.innerHTML = `<div class="empty">${t.loadFail}<br>${esc(e.message)}<br><br><button class="btn primary" onclick="location.reload()">${t.reload}</button></div>`;
     }
   }
 })();

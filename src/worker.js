@@ -4,10 +4,34 @@
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TABLES = { members: 'members', areas: 'areas' };
 
+// エラー文言は画面の言語（x-lang ヘッダー）に合わせて返す
+const MESSAGES = {
+  ja: {
+    date: (l) => `${l} は YYYY-MM-DD 形式で指定してください`,
+    invalid: (l) => `${l} が不正です`,
+    nameRequired: () => '名前を入力してください',
+    nameTooLong: () => '名前は30文字以内にしてください',
+    notFound: () => 'Not found',
+    unknownRef: () => '存在しないメンバーまたは場所です',
+    server: () => 'サーバーエラーが発生しました',
+  },
+  en: {
+    date: (l) => `${l} must be in YYYY-MM-DD format`,
+    invalid: (l) => `Invalid ${l}`,
+    nameRequired: () => 'Please enter a name',
+    nameTooLong: () => 'Names must be 30 characters or fewer',
+    notFound: () => 'Not found',
+    unknownRef: () => 'That resident or area no longer exists',
+    server: () => 'Something went wrong on the server',
+  },
+};
+
 class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
+  constructor(status, code, arg) {
+    super(code);
     this.status = status;
+    this.code = code;
+    this.arg = arg;
   }
 }
 
@@ -17,23 +41,23 @@ const json = (data, status = 200) =>
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   });
 
-const bad = (msg) => new HttpError(400, msg);
+const bad = (code, arg) => new HttpError(400, code, arg);
 
 function date(v, label = 'date') {
-  if (typeof v !== 'string' || !DATE.test(v)) throw bad(`${label} は YYYY-MM-DD 形式で指定してください`);
+  if (typeof v !== 'string' || !DATE.test(v)) throw bad('date', label);
   return v;
 }
 
 function int(v, label) {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw bad(`${label} が不正です`);
+  if (!Number.isInteger(n) || n < 1) throw bad('invalid', label);
   return n;
 }
 
 function name(v) {
   const s = typeof v === 'string' ? v.trim() : '';
-  if (!s) throw bad('名前を入力してください');
-  if (s.length > 30) throw bad('名前は30文字以内にしてください');
+  if (!s) throw bad('nameRequired');
+  if (s.length > 30) throw bad('nameTooLong');
   return s;
 }
 
@@ -86,7 +110,7 @@ async function api(req, env, url) {
     if (method === 'PUT') {
       const d = date(body.date);
       const slot = Number(body.slot);
-      if (![0, 1, 2].includes(slot)) throw bad('slot が不正です');
+      if (![0, 1, 2].includes(slot)) throw bad('invalid', 'slot');
       const member = int(body.member_id, 'member_id');
       if (body.level == null) {
         await db
@@ -94,7 +118,7 @@ async function api(req, env, url) {
           .bind(d, slot, member)
           .run();
       } else {
-        if (!['must', 'maybe'].includes(body.level)) throw bad('level が不正です');
+        if (!['must', 'maybe'].includes(body.level)) throw bad('invalid', 'level');
         await db
           .prepare(
             `INSERT INTO reservations (date, slot, member_id, level) VALUES (?, ?, ?, ?)
@@ -135,20 +159,21 @@ async function api(req, env, url) {
     }
   }
 
-  throw new HttpError(404, 'Not found');
+  throw new HttpError(404, 'notFound');
 }
 
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
+    const M = MESSAGES[req.headers.get('x-lang') === 'en' ? 'en' : 'ja'];
     try {
       return await api(req, env, url);
     } catch (e) {
-      if (e instanceof HttpError) return json({ error: e.message }, e.status);
-      if (/FOREIGN KEY/i.test(String(e?.message))) return json({ error: '存在しないメンバーまたは場所です' }, 400);
+      if (e instanceof HttpError) return json({ error: M[e.code](e.arg) }, e.status);
+      if (/FOREIGN KEY/i.test(String(e?.message))) return json({ error: M.unknownRef() }, 400);
       console.error(e);
-      return json({ error: 'サーバーエラーが発生しました' }, 500);
+      return json({ error: M.server() }, 500);
     }
   },
 };
