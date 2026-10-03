@@ -1,7 +1,7 @@
 // homewood — シェアハウス用 洗濯機予約 & 掃除当番（スマホ前提）
 
 const SLOT_END = [12, 18, 24]; // 午前 / 午後 / 夜 の終わりの時刻
-const TABS = ['laundry', 'chores', 'board', 'settings'];
+const TABS = ['board', 'laundry', 'chores', 'settings'];
 const POST_MAX = 280;
 const KEY = {
   me: 'homewood.me',
@@ -27,7 +27,7 @@ const I18N = {
     sep: '、',
     range: (a, b) => `${a} 〜 ${b}`,
     colon: '：',
-    tabs: { laundry: '洗濯', chores: '掃除', board: '掲示板', settings: '設定' },
+    tabs: { board: '掲示板', laundry: '洗濯', chores: '掃除', settings: '設定' },
     menu: 'メニュー',
     switchUser: 'ユーザーを切り替える',
     shareIcon: '共有',
@@ -140,7 +140,7 @@ const I18N = {
     sep: ', ',
     range: (a, b) => `${a} – ${b}`,
     colon: ': ',
-    tabs: { laundry: 'Laundry', chores: 'Cleaning', board: 'Board', settings: 'Settings' },
+    tabs: { board: 'Board', laundry: 'Laundry', chores: 'Cleaning', settings: 'Settings' },
     menu: 'Menu',
     switchUser: 'Switch user',
     shareIcon: 'Share',
@@ -272,7 +272,7 @@ const state = {
   areas: [],
   me: null,
   picking: false, // ユーザー選択画面を表示中
-  tab: 'laundry',
+  tab: 'board',
   laundryWeek: 0, // 今日から何週先か
   choresWeek: 0, // 今週から何週先か
   reservations: [],
@@ -418,7 +418,7 @@ async function loadBase() {
 
 let seq = 0;
 async function show(tab, { silent = false } = {}) {
-  const nextTab = TABS.includes(tab) ? tab : 'laundry';
+  const nextTab = TABS.includes(tab) ? tab : TABS[0];
   if (nextTab !== state.tab) {
     state.editing = false;
     state.draft = '';
@@ -576,7 +576,7 @@ function laundryHTML() {
     });
   }
 
-  return `${hintHTML()}${noticeHTML()}
+  return `${noticeHTML()}
     <div class="head">
       <div>
         <h2>${t.laundry}</h2>
@@ -732,7 +732,7 @@ function boardHTML() {
   const byMember = Object.fromEntries(posts.map((p) => [p.member_id, p]));
   // 自分を先頭に、あとは登録順
   const order = [state.me, ...state.members.filter((m) => m.id !== state.me.id)];
-  return `${noticeHTML()}
+  return `${hintHTML()}${noticeHTML()}
     <div class="head"><div><h2>${t.board}</h2><p class="sub">${t.boardNote}</p></div></div>
     <div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       ${order.map((m) => postCardHTML(m, byMember[m.id], likes)).join('')}
