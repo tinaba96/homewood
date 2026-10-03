@@ -11,6 +11,8 @@ const MESSAGES = {
     invalid: (l) => `${l} が不正です`,
     nameRequired: () => '名前を入力してください',
     nameTooLong: () => '名前は30文字以内にしてください',
+    bodyTooLong: () => '280文字以内にしてください',
+    ownLike: () => '自分の投稿にはいいねできません',
     notFound: () => 'Not found',
     unknownRef: () => '存在しないメンバーまたは場所です',
     server: () => 'サーバーエラーが発生しました',
@@ -20,6 +22,8 @@ const MESSAGES = {
     invalid: (l) => `Invalid ${l}`,
     nameRequired: () => 'Please enter a name',
     nameTooLong: () => 'Names must be 30 characters or fewer',
+    bodyTooLong: () => 'Please keep it within 280 characters',
+    ownLike: () => "You can't like your own post",
     notFound: () => 'Not found',
     unknownRef: () => 'That resident or area no longer exists',
     server: () => 'Something went wrong on the server',
@@ -157,6 +161,45 @@ async function api(req, env, url) {
       }
       return json({ ok: true });
     }
+  }
+
+  // 掲示板
+  if (path === '/board' && method === 'GET') {
+    const [posts, likes] = await db.batch([
+      db.prepare('SELECT member_id, body, updated_at FROM posts'),
+      db.prepare('SELECT owner_id, liker_id FROM likes'),
+    ]);
+    return json({ posts: posts.results, likes: likes.results });
+  }
+  const board = path.match(/^\/board\/(\d+)(\/like)?$/);
+  if (board && method === 'PUT') {
+    const owner = int(board[1], 'member_id');
+    if (!board[2]) {
+      // 投稿の上書き（空なら削除）。新しい投稿になるので、いいねはリセット
+      const text = typeof body.body === 'string' ? body.body.trim() : '';
+      if (text.length > 280) throw bad('bodyTooLong');
+      const write = text
+        ? db
+            .prepare(
+              `INSERT INTO posts (member_id, body) VALUES (?, ?)
+               ON CONFLICT (member_id) DO UPDATE SET body = excluded.body, updated_at = datetime('now')`,
+            )
+            .bind(owner, text)
+        : db.prepare('DELETE FROM posts WHERE member_id = ?').bind(owner);
+      await db.batch([write, db.prepare('DELETE FROM likes WHERE owner_id = ?').bind(owner)]);
+      return json({ ok: true });
+    }
+    const liker = int(body.liker_id, 'liker_id');
+    if (liker === owner) throw bad('ownLike');
+    await db
+      .prepare(
+        body.on
+          ? 'INSERT OR IGNORE INTO likes (owner_id, liker_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM posts WHERE member_id = ?1)'
+          : 'DELETE FROM likes WHERE owner_id = ? AND liker_id = ?',
+      )
+      .bind(owner, liker)
+      .run();
+    return json({ ok: true });
   }
 
   throw new HttpError(404, 'notFound');

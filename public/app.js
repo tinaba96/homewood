@@ -1,7 +1,8 @@
 // homewood — シェアハウス用 洗濯機予約 & 掃除当番（スマホ前提）
 
 const SLOT_END = [12, 18, 24]; // 午前 / 午後 / 夜 の終わりの時刻
-const TABS = ['laundry', 'chores', 'settings'];
+const TABS = ['laundry', 'chores', 'board', 'settings'];
+const POST_MAX = 280;
 const KEY = {
   me: 'homewood.me',
   lang: 'homewood.lang',
@@ -26,7 +27,7 @@ const I18N = {
     sep: '、',
     range: (a, b) => `${a} 〜 ${b}`,
     colon: '：',
-    tabs: { laundry: '洗濯', chores: '掃除', settings: '設定' },
+    tabs: { laundry: '洗濯', chores: '掃除', board: '掲示板', settings: '設定' },
     menu: 'メニュー',
     switchUser: 'ユーザーを切り替える',
     shareIcon: '共有',
@@ -98,11 +99,32 @@ const I18N = {
     thanks: 'おつかれさまでした ✨',
     undone: '完了を取り消しました',
     confirmDelete: (n, kind) =>
-      `「${n}」を削除しますか？\n${kind === 'members' ? 'この人の洗濯予約も消え、掃除当番のローテーションが変わります。' : 'この場所の完了記録も消えます。'}`,
+      `「${n}」を削除しますか？\n${kind === 'members' ? 'この人の洗濯予約と掲示板の投稿も消え、掃除当番のローテーションが変わります。' : 'この場所の完了記録も消えます。'}`,
     deleted: '削除しました',
     added: (n) => `「${n}」を追加しました`,
     loadFail: '読み込めませんでした。',
     reload: '再読み込み',
+    board: '掲示板',
+    boardNote: 'ひとり1枚のスペース。書き直すと前の内容は消えます。',
+    yourSpace: 'あなたのスペース',
+    postPh: 'いま思っていること、お知らせ、なんでも',
+    postEmpty: 'まだ何も書いていません',
+    postEmptyOther: 'まだ書いていません',
+    write: '書く',
+    edit: '書き直す',
+    save: '保存',
+    cancel: 'やめる',
+    clear: '消す',
+    charsLeft: (n) => `あと${n}文字`,
+    charsOver: (n) => `${n}文字オーバー`,
+    saved: '保存しました',
+    cleared: '消しました',
+    likeLabel: (n) => `${n}さんの投稿にいいね`,
+    unlikeLabel: (n) => `${n}さんの投稿のいいねを取り消す`,
+    likedBy: (names) => `${names}がいいね`,
+    ago: (m) => (m < 1 ? 'たった今' : m < 60 ? `${m}分前` : m < 1440 ? `${Math.floor(m / 60)}時間前` : `${Math.floor(m / 1440)}日前`),
+    confirmClear: '投稿を消しますか？',
+    relikeNote: '書き直すと、いいねはリセットされます',
   },
   en: {
     langName: 'English',
@@ -118,7 +140,7 @@ const I18N = {
     sep: ', ',
     range: (a, b) => `${a} – ${b}`,
     colon: ': ',
-    tabs: { laundry: 'Laundry', chores: 'Cleaning', settings: 'Settings' },
+    tabs: { laundry: 'Laundry', chores: 'Cleaning', board: 'Board', settings: 'Settings' },
     menu: 'Menu',
     switchUser: 'Switch user',
     shareIcon: 'Share',
@@ -191,11 +213,32 @@ const I18N = {
     thanks: 'Thanks for cleaning ✨',
     undone: 'Marked as not done',
     confirmDelete: (n, kind) =>
-      `Delete "${n}"?\n${kind === 'members' ? "Their laundry bookings will be removed and the cleaning rotation will change." : 'Its completion history will be removed.'}`,
+      `Delete "${n}"?\n${kind === 'members' ? "Their laundry bookings and board post will be removed, and the cleaning rotation will change." : 'Its completion history will be removed.'}`,
     deleted: 'Deleted',
     added: (n) => `Added "${n}"`,
     loadFail: "Couldn't load the app.",
     reload: 'Reload',
+    board: 'Board',
+    boardNote: 'One space per person. Rewriting replaces what was there.',
+    yourSpace: 'Your space',
+    postPh: "What's on your mind, a heads-up, anything",
+    postEmpty: "You haven't written anything yet",
+    postEmptyOther: 'Nothing yet',
+    write: 'Write',
+    edit: 'Rewrite',
+    save: 'Save',
+    cancel: 'Cancel',
+    clear: 'Clear',
+    charsLeft: (n) => `${n} left`,
+    charsOver: (n) => `${n} over`,
+    saved: 'Saved',
+    cleared: 'Cleared',
+    likeLabel: (n) => `Like ${n}'s post`,
+    unlikeLabel: (n) => `Unlike ${n}'s post`,
+    likedBy: (names) => `Liked by ${names}`,
+    ago: (m) => (m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`),
+    confirmClear: 'Clear your post?',
+    relikeNote: 'Rewriting resets likes',
   },
 };
 let lang = 'ja';
@@ -215,6 +258,7 @@ const ICON = {
   right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 8a4.2 4.2 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z"/></svg>',
   share:
     '<svg class="inline-icon" viewBox="0 0 24 24" role="img"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M7 10H5.5v11h13V10H17"/></svg>',
 };
@@ -236,6 +280,9 @@ const state = {
   loading: false,
   offline: false,
   justDone: null, // 完了アニメーションを付ける場所 id
+  board: { posts: [], likes: [] },
+  editing: false, // 掲示板の自分のスペースを編集中
+  draft: '',
 };
 
 /* ---------- utils ---------- */
@@ -352,6 +399,7 @@ function source() {
     const week = ymd(choresMonday());
     return { key: `chores:${week}`, url: `/chores?week=${week}`, field: 'done' };
   }
+  if (state.tab === 'board') return { key: 'board', url: '/board', field: 'board' };
   return null;
 }
 
@@ -370,14 +418,19 @@ async function loadBase() {
 
 let seq = 0;
 async function show(tab, { silent = false } = {}) {
-  state.tab = TABS.includes(tab) ? tab : 'laundry';
+  const nextTab = TABS.includes(tab) ? tab : 'laundry';
+  if (nextTab !== state.tab) {
+    state.editing = false;
+    state.draft = '';
+  }
+  state.tab = nextTab;
   const src = state.me && !state.picking ? source() : null;
   if (!src) return render();
 
   const token = ++seq;
   const cached = cache.get(src.key);
   if (cached) state[src.field] = cached;
-  else if (!silent) state[src.field] = [];
+  else if (!silent) state[src.field] = src.field === 'board' ? { posts: [], likes: [] } : [];
   state.loading = !cached && !silent;
   if (!silent) render();
 
@@ -439,7 +492,7 @@ function render() {
   }
 
   const name = picking ? 'picker' : state.tab;
-  view.innerHTML = picking ? pickerHTML() : { laundry: laundryHTML, chores: choresHTML, settings: settingsHTML }[state.tab]();
+  view.innerHTML = picking ? pickerHTML() : { laundry: laundryHTML, chores: choresHTML, board: boardHTML, settings: settingsHTML }[state.tab]();
   if (name !== lastView) {
     view.classList.remove('enter');
     void view.offsetWidth; // アニメーションを毎回かけ直す
@@ -619,6 +672,119 @@ function choresHTML() {
   return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>`;
 }
 
+/* ---------- 掲示板（ひとり1枚、上書きのみ） ---------- */
+const minutesAgo = (s) => Math.max(0, Math.floor((Date.now() - parseUtc(s)) / 60000));
+// 改行を残しつつ安全に表示
+const multiline = (text) => esc(text).replace(/\n/g, '<br>');
+
+function postCardHTML(m, post, likes) {
+  const isMine = m.id === state.me.id;
+  const likers = likes.filter((l) => l.owner_id === m.id).map((l) => l.liker_id);
+  const liked = likers.includes(state.me.id);
+  const likerNames = likers.map((id) => esc(memberName(id))).join(t.sep);
+
+  let body;
+  if (isMine && state.editing) {
+    const len = [...state.draft].length;
+    const over = len - POST_MAX;
+    body = `<form class="post-edit" data-form="post">
+      <textarea name="body" rows="4" maxlength="${POST_MAX * 2}" placeholder="${t.postPh}" aria-label="${t.yourSpace}" autofocus>${esc(state.draft)}</textarea>
+      <div class="edit-row">
+        <span class="count ${over > 0 ? 'over' : ''}" aria-live="polite">${over > 0 ? t.charsOver(over) : t.charsLeft(-over)}</span>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost sm" data-action="post-cancel">${t.cancel}</button>
+        <button class="btn primary sm" ${over > 0 ? 'disabled' : ''}>${t.save}</button>
+      </div>
+      ${post && likers.length ? `<p class="muted small" style="margin:8px 0 0">${t.relikeNote}</p>` : ''}
+    </form>`;
+  } else if (post) {
+    body = `<p class="post-body">${multiline(post.body)}</p>`;
+  } else {
+    body = `<p class="post-body empty-post">${isMine ? t.postEmpty : t.postEmptyOther}</p>`;
+  }
+
+  let foot = '';
+  if (!(isMine && state.editing)) {
+    const likeBtn = isMine
+      ? likers.length
+        ? `<span class="like static on" aria-hidden="true">${ICON.heart}${likers.length}</span>`
+        : ''
+      : post
+        ? `<button class="like ${liked ? 'on' : ''}" data-action="like" data-owner="${m.id}" data-on="${liked ? 0 : 1}" aria-pressed="${liked}" aria-label="${esc(liked ? t.unlikeLabel(m.name) : t.likeLabel(m.name))}">${ICON.heart}${likers.length || ''}</button>`
+        : '';
+    const mineBtns = isMine
+      ? `<span class="spacer"></span>
+         ${post ? `<button class="btn ghost sm" data-action="post-clear">${t.clear}</button>` : ''}
+         <button class="btn ${post ? 'ghost' : 'primary'} sm" data-action="post-edit">${post ? t.edit : t.write}</button>`
+      : '';
+    foot = `<div class="post-foot">${likeBtn}${likerNames ? `<span class="likers">${t.likedBy(likerNames)}</span>` : ''}${mineBtns}</div>`;
+  }
+
+  return `<article class="card post ${isMine ? 'mine' : ''}" aria-label="${esc(m.name)}">
+    <header class="post-head">${avatar(m)}<b>${esc(m.name)}</b>${isMine ? `<span class="badge">${t.you}</span>` : ''}
+      ${post ? `<time class="muted small" datetime="${post.updated_at}">${t.ago(minutesAgo(post.updated_at))}</time>` : ''}</header>
+    ${body}${foot}
+  </article>`;
+}
+
+function boardHTML() {
+  const { posts, likes } = state.board;
+  const byMember = Object.fromEntries(posts.map((p) => [p.member_id, p]));
+  // 自分を先頭に、あとは登録順
+  const order = [state.me, ...state.members.filter((m) => m.id !== state.me.id)];
+  return `${noticeHTML()}
+    <div class="head"><div><h2>${t.board}</h2><p class="sub">${t.boardNote}</p></div></div>
+    <div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
+      ${order.map((m) => postCardHTML(m, byMember[m.id], likes)).join('')}
+    </div>`;
+}
+
+// 投稿の保存（空なら削除）。画面を先に更新し、失敗したら戻す
+async function savePost(text) {
+  const prev = state.board;
+  const posts = prev.posts.filter((p) => p.member_id !== state.me.id);
+  if (text) posts.push({ member_id: state.me.id, body: text, updated_at: nowUtc() });
+  state.board = { posts, likes: prev.likes.filter((l) => l.owner_id !== state.me.id) };
+  state.editing = false;
+  state.draft = '';
+  render();
+  buzz();
+  toast(text ? t.saved : t.cleared);
+  try {
+    await api(`/board/${state.me.id}`, { method: 'PUT', body: { body: text } });
+    cache.set('board', state.board);
+  } catch (e) {
+    if (state.tab === 'board') {
+      state.board = prev;
+      if (text) {
+        state.editing = true;
+        state.draft = text;
+      }
+      render();
+    }
+    toast(t.saveFail(e.message));
+  }
+}
+
+async function toggleLike(owner, on) {
+  const prev = state.board;
+  const likes = prev.likes.filter((l) => !(l.owner_id === owner && l.liker_id === state.me.id));
+  if (on) likes.push({ owner_id: owner, liker_id: state.me.id });
+  state.board = { ...prev, likes };
+  render();
+  buzz();
+  try {
+    await api(`/board/${owner}/like`, { method: 'PUT', body: { liker_id: state.me.id, on } });
+    cache.set('board', state.board);
+  } catch (e) {
+    if (state.tab === 'board') {
+      state.board = prev;
+      render();
+    }
+    toast(t.saveFail(e.message));
+  }
+}
+
 function settingsHTML() {
   const list = (items, kind, withAvatar) =>
     items.length
@@ -794,6 +960,25 @@ document.addEventListener('click', (e) => {
     storage((s) => s.setItem(KEY.lang, lang));
     return render();
   }
+  if (a === 'post-edit') {
+    state.editing = true;
+    state.draft = state.board.posts.find((p) => p.member_id === state.me.id)?.body ?? '';
+    render();
+    const ta = view.querySelector('textarea');
+    ta?.focus();
+    ta?.setSelectionRange(ta.value.length, ta.value.length);
+    return;
+  }
+  if (a === 'post-cancel') {
+    state.editing = false;
+    state.draft = '';
+    return render();
+  }
+  if (a === 'post-clear') {
+    if (!confirm(t.confirmClear)) return;
+    return savePost('');
+  }
+  if (a === 'like') return toggleLike(Number(el.dataset.owner), el.dataset.on === '1');
   if (a === 'slot') return openSlot(el.dataset.date, Number(el.dataset.slot));
   if (a === 'close') return sheet.close();
   if (a === 'reserve') return reserve(el.dataset.level);
@@ -830,6 +1015,11 @@ document.addEventListener('submit', (e) => {
   const form = e.target.closest('[data-form]');
   if (!form) return;
   e.preventDefault();
+  if (form.dataset.form === 'post') {
+    const text = form.elements.body.value.trim();
+    if ([...text].length > POST_MAX) return;
+    return savePost(text);
+  }
   const kind = form.dataset.form;
   const input = form.elements.name;
   if (!input.value.trim()) return input.focus();
@@ -842,6 +1032,18 @@ document.addEventListener('submit', (e) => {
     // 続けて追加できるように同じ入力欄へ戻す
     view.querySelector(`[data-form="${kind}"] input`)?.focus();
   });
+});
+
+// 掲示板の文字数カウンター（入力中は再描画しない）
+document.addEventListener('input', (e) => {
+  const ta = e.target.closest('[data-form="post"] textarea');
+  if (!ta) return;
+  state.draft = ta.value;
+  const over = [...ta.value].length - POST_MAX;
+  const count = ta.form.querySelector('.count');
+  count.textContent = over > 0 ? t.charsOver(over) : t.charsLeft(-over);
+  count.classList.toggle('over', over > 0);
+  ta.form.querySelector('.btn.primary').disabled = over > 0;
 });
 
 $('#me-btn').addEventListener('click', () => {
@@ -895,7 +1097,7 @@ window.addEventListener('hashchange', () => {
 
 // アプリに戻ってきた時・定期的に最新化（入力中の設定画面と予約シート表示中は除く）
 function refresh() {
-  if (!state.me || state.picking || state.tab === 'settings' || sheet.open) return;
+  if (!state.me || state.picking || state.tab === 'settings' || sheet.open || state.editing) return;
   loadBase()
     .then(() => show(state.tab, { silent: true }))
     .catch(() => {
