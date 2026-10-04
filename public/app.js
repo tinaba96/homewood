@@ -125,6 +125,9 @@ const I18N = {
     ago: (m) => (m < 1 ? 'たった今' : m < 60 ? `${m}分前` : m < 1440 ? `${Math.floor(m / 60)}時間前` : `${Math.floor(m / 1440)}日前`),
     confirmClear: '投稿を消しますか？',
     relikeNote: '書き直すと、いいねはリセットされます',
+    choreAlert: (n) => `掃除が${n}件残っています`,
+    choreAlertOthers: (names) => `${names}さんの掃除がまだです`,
+    choreAlertGo: '掃除タブへ',
     howTo: 'やり方を見る',
     guideTitle: (n) => `${n} の掃除`,
     noGuide: 'まだガイドがありません。設定から書けます。',
@@ -248,6 +251,9 @@ const I18N = {
     ago: (m) => (m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`),
     confirmClear: 'Clear your post?',
     relikeNote: 'Rewriting resets likes',
+    choreAlert: (n) => `${n} cleaning ${n === 1 ? 'task' : 'tasks'} still to do`,
+    choreAlertOthers: (names) => `${names} still ${names.includes(t.sep) ? 'have' : 'has'} cleaning to do`,
+    choreAlertGo: 'Go to Cleaning',
     howTo: 'How to clean',
     guideTitle: (n) => `Cleaning the ${n}`,
     noGuide: 'No guide yet. You can write one in Settings.',
@@ -299,7 +305,7 @@ const state = {
   loading: false,
   offline: false,
   justDone: null, // 完了アニメーションを付ける場所 id
-  board: { posts: [], likes: [] },
+  board: { posts: [], likes: [], done: [] },
   editing: false, // 掲示板の自分のスペースを編集中
   draft: '',
 };
@@ -418,7 +424,10 @@ function source() {
     const week = ymd(choresMonday());
     return { key: `chores:${week}`, url: `/chores?week=${week}`, field: 'done' };
   }
-  if (state.tab === 'board') return { key: 'board', url: '/board', field: 'board' };
+  if (state.tab === 'board') {
+    const week = ymd(mondayOf(today()));
+    return { key: `board:${week}`, url: `/board?week=${week}`, field: 'board' };
+  }
   return null;
 }
 
@@ -449,7 +458,7 @@ async function show(tab, { silent = false } = {}) {
   const token = ++seq;
   const cached = cache.get(src.key);
   if (cached) state[src.field] = cached;
-  else if (!silent) state[src.field] = src.field === 'board' ? { posts: [], likes: [] } : [];
+  else if (!silent) state[src.field] = src.field === 'board' ? { posts: [], likes: [], done: [] } : [];
   state.loading = !cached && !silent;
   if (!silent) render();
 
@@ -747,12 +756,36 @@ function postCardHTML(m, post, likes) {
   </article>`;
 }
 
+// 今週の掃除が残っていて締め切りが近いときだけ、掲示板の上に出す
+function choreAlertHTML() {
+  const mon = mondayOf(today());
+  const left = Math.round((addDays(mon, 6) - today()) / 864e5); // 日曜まであと何日
+  if (left > 2) return '';
+  const rows = assignments(mon);
+  const doneBy = new Set((state.board.done || []).map((d) => d.area_id));
+  const pending = rows.filter((r) => !doneBy.has(r.area.id));
+  if (!pending.length) return '';
+  const mine = pending.filter((r) => r.member.id === state.me.id);
+  const due = left === 0 ? t.dueToday : left === 1 ? t.dueTomorrow : t.dueIn(left);
+  if (mine.length) {
+    return `<a class="alert ${left <= 1 ? 'urgent' : ''}" href="#chores">
+      <div class="alert-body">
+        <b>${t.choreAlert(mine.length)}</b>
+        <span>${mine.map((r) => esc(r.area.name)).join(t.sep)} · ${due}</span>
+      </div>
+      <span class="alert-go">${t.choreAlertGo}${ICON.right}</span>
+    </a>`;
+  }
+  const names = [...new Set(pending.map((r) => r.member.name))].map(esc).join(t.sep);
+  return `<a class="alert soft" href="#chores"><div class="alert-body"><span>${t.choreAlertOthers(names)} · ${due}</span></div><span class="alert-go">${ICON.right}</span></a>`;
+}
+
 function boardHTML() {
   const { posts, likes } = state.board;
   const byMember = Object.fromEntries(posts.map((p) => [p.member_id, p]));
   // 自分を先頭に、あとは登録順
   const order = [state.me, ...state.members.filter((m) => m.id !== state.me.id)];
-  return `${hintHTML()}${noticeHTML()}
+  return `${noticeHTML()}${choreAlertHTML()}${hintHTML()}
     <div class="head"><div><h2>${t.board}</h2><p class="sub">${t.boardNote}</p></div></div>
     <div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       ${order.map((m) => postCardHTML(m, byMember[m.id], likes)).join('')}
@@ -772,7 +805,7 @@ async function savePost(text) {
   toast(text ? t.saved : t.cleared);
   try {
     await api(`/board/${state.me.id}`, { method: 'PUT', body: { body: text } });
-    cache.set('board', state.board);
+    if (source()?.key) cache.set(source().key, state.board);
   } catch (e) {
     if (state.tab === 'board') {
       state.board = prev;
@@ -795,7 +828,7 @@ async function toggleLike(owner, on) {
   buzz();
   try {
     await api(`/board/${owner}/like`, { method: 'PUT', body: { liker_id: state.me.id, on } });
-    cache.set('board', state.board);
+    if (source()?.key) cache.set(source().key, state.board);
   } catch (e) {
     if (state.tab === 'board') {
       state.board = prev;

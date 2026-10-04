@@ -182,11 +182,15 @@ async function api(req, env, url) {
 
   // 掲示板
   if (path === '/board' && method === 'GET') {
-    const [posts, likes] = await db.batch([
+    // week を付けると、その週の掃除の完了状況も一緒に返す（掲示板の未完了アラート用）
+    const week = url.searchParams.get('week');
+    const stmts = [
       db.prepare('SELECT member_id, body, updated_at FROM posts'),
       db.prepare('SELECT owner_id, liker_id FROM likes'),
-    ]);
-    return json({ posts: posts.results, likes: likes.results });
+    ];
+    if (week) stmts.push(db.prepare('SELECT area_id, member_id, done_at FROM chores_done WHERE week = ?').bind(date(week, 'week')));
+    const [posts, likes, done] = await db.batch(stmts);
+    return json({ posts: posts.results, likes: likes.results, done: done?.results ?? [] });
   }
   const board = path.match(/^\/board\/(\d+)(\/like)?$/);
   if (board && method === 'PUT') {

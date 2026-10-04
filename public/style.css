@@ -209,6 +209,21 @@ body:has(input:focus) .tabbar { visibility: hidden; }
 @keyframes pop { 40% { transform: scale(1.025); } }
 .badge { padding: 1px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 800; }
 
+/* ---------- chore alert on the board ---------- */
+.alert {
+  display: flex; align-items: center; gap: 10px; min-height: 60px; margin-bottom: 14px; padding: 12px 10px 12px 16px;
+  border-radius: 14px; background: var(--warn-soft); color: var(--ink); text-decoration: none;
+  border-left: 5px solid var(--warn);
+}
+.alert.urgent { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-left-color: var(--danger); }
+.alert.soft { background: var(--accent-soft); border-left-color: var(--accent-line); min-height: 48px; }
+.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.alert-body b { font-size: 15px; }
+.alert.urgent .alert-body b { color: var(--danger); }
+.alert-go { display: inline-flex; align-items: center; gap: 2px; flex: none; font-size: 13px; font-weight: 800; color: var(--accent); }
+.alert-go svg { width: 18px; height: 18px; }
+.alert:active { transform: scale(.98); }
+
 /* ---------- board ---------- */
 .post { padding: 14px 16px 12px; }
 .post.mine { border-color: var(--accent-line); }
