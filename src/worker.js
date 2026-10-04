@@ -12,6 +12,7 @@ const MESSAGES = {
     nameRequired: () => '名前を入力してください',
     nameTooLong: () => '名前は30文字以内にしてください',
     bodyTooLong: () => '280文字以内にしてください',
+    guideTooLong: () => 'ガイドは2000文字以内にしてください',
     ownLike: () => '自分の投稿にはいいねできません',
     notFound: () => 'Not found',
     unknownRef: () => '存在しないメンバーまたは場所です',
@@ -23,6 +24,7 @@ const MESSAGES = {
     nameRequired: () => 'Please enter a name',
     nameTooLong: () => 'Names must be 30 characters or fewer',
     bodyTooLong: () => 'Please keep it within 280 characters',
+    guideTooLong: () => 'Please keep the guide within 2000 characters',
     ownLike: () => "You can't like your own post",
     notFound: () => 'Not found',
     unknownRef: () => 'That resident or area no longer exists',
@@ -75,9 +77,24 @@ async function api(req, env, url) {
   if (path === '/bootstrap' && method === 'GET') {
     const [members, areas] = await db.batch([
       db.prepare('SELECT id, name FROM members ORDER BY id'),
-      db.prepare('SELECT id, name FROM areas ORDER BY id'),
+      db.prepare('SELECT id, name, guide_ja, guide_en, image FROM areas ORDER BY id'),
     ]);
     return json({ members: members.results, areas: areas.results });
+  }
+
+  // 掃除場所のガイド更新
+  const guide = path.match(/^\/areas\/(\d+)\/guide$/);
+  if (guide && method === 'PUT') {
+    const text = (v) => {
+      const str = typeof v === 'string' ? v.trim() : '';
+      if (str.length > 2000) throw bad('guideTooLong');
+      return str;
+    };
+    await db
+      .prepare('UPDATE areas SET guide_ja = ?, guide_en = ? WHERE id = ?')
+      .bind(text(body.guide_ja), text(body.guide_en), int(guide[1], 'id'))
+      .run();
+    return json({ ok: true });
   }
 
   // メンバー / 掃除場所の追加・削除
@@ -86,7 +103,7 @@ async function api(req, env, url) {
     const table = TABLES[col[1]];
     if (method === 'POST' && !col[2]) {
       const row = await db
-        .prepare(`INSERT INTO ${table} (name) VALUES (?) RETURNING id, name`)
+        .prepare(`INSERT INTO ${table} (name) VALUES (?) RETURNING ${table === 'areas' ? 'id, name, guide_ja, guide_en, image' : 'id, name'}`)
         .bind(name(body.name))
         .first();
       return json(row, 201);

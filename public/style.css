@@ -353,6 +353,27 @@ html:has(.sheet[open]) { overflow: hidden; }
 .opt.selected { border-color: var(--accent); background: var(--accent-soft); }
 .sheet .btn.block + .btn.block { margin-top: 8px; }
 
+/* ---------- cleaning guide ---------- */
+.howto {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: 2px 0 -8px -8px; padding: 0 8px;
+  border: 0; background: none; color: var(--accent); font-size: 14px; font-weight: 700;
+}
+.howto svg { width: 18px; height: 18px; }
+.guide { margin: 12px 0 4px; font-size: 15px; line-height: 1.6; }
+.guide h4 { margin: 14px 0 4px; font-size: 13px; font-weight: 800; color: var(--muted); letter-spacing: .04em; }
+.guide p { margin: 0 0 6px; }
+.guide ul { margin: 0 0 6px; padding-left: 22px; }
+.guide li { margin: 2px 0; }
+.guide-img { display: block; width: 100%; max-height: 42dvh; object-fit: contain; margin: 10px 0 14px; border-radius: 12px; background: var(--bg); }
+.guide-edit label { display: block; margin: 12px 0; font-size: 13px; font-weight: 800; color: var(--muted); }
+.guide-edit textarea {
+  display: block; width: 100%; margin-top: 4px; padding: 10px 12px; resize: vertical;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); font-size: 16px; line-height: 1.5;
+}
+.guide-edit textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+.li-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.chore.is-done .howto { color: var(--muted); }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + var(--safe-b) + 16px); z-index: 60;

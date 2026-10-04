@@ -125,6 +125,15 @@ const I18N = {
     ago: (m) => (m < 1 ? 'たった今' : m < 60 ? `${m}分前` : m < 1440 ? `${Math.floor(m / 60)}時間前` : `${Math.floor(m / 1440)}日前`),
     confirmClear: '投稿を消しますか？',
     relikeNote: '書き直すと、いいねはリセットされます',
+    howTo: 'やり方を見る',
+    guideTitle: (n) => `${n} の掃除`,
+    noGuide: 'まだガイドがありません。設定から書けます。',
+    guideOtherLang: '（英語版のみあります）',
+    editGuide: 'ガイドを編集',
+    guideHelp: '「## 見出し」と「- 項目」が使えます',
+    guideJa: '日本語',
+    guideEn: 'English',
+    guideSaved: 'ガイドを保存しました',
   },
   en: {
     langName: 'English',
@@ -239,6 +248,15 @@ const I18N = {
     ago: (m) => (m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`),
     confirmClear: 'Clear your post?',
     relikeNote: 'Rewriting resets likes',
+    howTo: 'How to clean',
+    guideTitle: (n) => `Cleaning the ${n}`,
+    noGuide: 'No guide yet. You can write one in Settings.',
+    guideOtherLang: '(Japanese version only)',
+    editGuide: 'Edit guide',
+    guideHelp: 'You can use "## Heading" and "- item"',
+    guideJa: '日本語',
+    guideEn: 'English',
+    guideSaved: 'Guide saved',
   },
 };
 let lang = 'ja';
@@ -258,6 +276,7 @@ const ICON = {
   right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2 2 0 0 1 6 3.5h5v16H6a2 2 0 0 0-2 2z"/><path d="M20 5.5a2 2 0 0 0-2-2h-5v16h5a2 2 0 0 1 2 2z"/></svg>',
   heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 8a4.2 4.2 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z"/></svg>',
   share:
     '<svg class="inline-icon" viewBox="0 0 24 24" role="img"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M7 10H5.5v11h13V10H17"/></svg>',
@@ -663,6 +682,7 @@ function choresHTML() {
           <div class="area">${esc(area.name)}</div>
           <div class="who">${avatar(member)}${esc(member.name)}${isMine ? `<span class="badge">${t.you}</span>` : ''}</div>
           ${note}
+          ${hasGuide(area) ? `<button class="howto" data-action="guide" data-area="${area.id}">${ICON.book}${t.howTo}</button>` : ''}
         </div>
         ${btn}
       </div>`;
@@ -785,13 +805,74 @@ async function toggleLike(owner, on) {
   }
 }
 
+/* ---------- 掃除ガイド ---------- */
+const guideText = (area) => (lang === 'en' ? area.guide_en || area.guide_ja : area.guide_ja || area.guide_en) || '';
+const hasGuide = (area) => !!(area.guide_ja || area.guide_en || area.image);
+
+function guideHTML(text) {
+  const out = [];
+  let list = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('- ') || line.startsWith('・')) {
+      if (!list) out.push((list = []));
+      list.push(`<li>${esc(line.replace(/^(- |・)/, ''))}</li>`);
+      continue;
+    }
+    list = null;
+    if (!line) continue;
+    if (line.startsWith('## ')) out.push(`<h4>${esc(line.slice(3))}</h4>`);
+    else out.push(`<p>${esc(line)}</p>`);
+  }
+  return out.map((x) => (Array.isArray(x) ? `<ul>${x.join('')}</ul>` : x)).join('');
+}
+
+function openGuide(areaId) {
+  const area = state.areas.find((a) => a.id === areaId);
+  if (!area) return;
+  const text = guideText(area);
+  const onlyOther = text && !(lang === 'en' ? area.guide_en : area.guide_ja);
+  $('#sheet-body').innerHTML = `
+    <h3 id="sheet-title" tabindex="-1" autofocus>${esc(t.guideTitle(area.name))}</h3>
+    ${onlyOther ? `<div class="when">${t.guideOtherLang}</div>` : ''}
+    <div class="guide">${text ? guideHTML(text) : `<p class="muted">${t.noGuide}</p>`}</div>
+    ${area.image ? `<img class="guide-img" src="${esc(area.image)}" alt="" loading="lazy">` : ''}
+    <button class="btn ghost block" data-action="close">${t.close}</button>`;
+  sheet.showModal();
+}
+
+function openGuideEditor(areaId) {
+  const area = state.areas.find((a) => a.id === areaId);
+  if (!area) return;
+  $('#sheet-body').innerHTML = `
+    <h3 id="sheet-title" tabindex="-1" autofocus>${esc(t.guideTitle(area.name))}</h3>
+    <div class="when">${t.guideHelp}</div>
+    <form class="guide-edit" data-form="guide" data-area="${area.id}">
+      <label>${t.guideJa}<textarea name="guide_ja" rows="7" maxlength="2000">${esc(area.guide_ja || '')}</textarea></label>
+      <label>${t.guideEn}<textarea name="guide_en" rows="7" maxlength="2000">${esc(area.guide_en || '')}</textarea></label>
+      <button class="btn primary block">${t.save}</button>
+      <button type="button" class="btn ghost block" data-action="close">${t.cancel}</button>
+    </form>`;
+  sheet.showModal();
+}
+
+async function saveGuide(areaId, guide_ja, guide_en) {
+  await api(`/areas/${areaId}/guide`, { method: 'PUT', body: { guide_ja, guide_en } });
+  const area = state.areas.find((a) => a.id === areaId);
+  if (area) Object.assign(area, { guide_ja, guide_en });
+  storage((s) => s.setItem(KEY.base, JSON.stringify({ members: state.members, areas: state.areas })));
+  sheet.close();
+  toast(t.guideSaved);
+  render();
+}
+
 function settingsHTML() {
   const list = (items, kind, withAvatar) =>
     items.length
       ? `<ul class="list">${items
           .map(
             (x) =>
-              `<li><span class="li-name">${withAvatar ? avatar(x) : ''}${esc(x.name)}</span><button class="del" data-action="delete" data-kind="${kind}" data-id="${x.id}" aria-label="${esc(t.deleteLabel(x.name))}">${ICON.x}</button></li>`,
+              `<li><span class="li-name">${withAvatar ? avatar(x) : ''}${esc(x.name)}</span><span class="li-actions">${kind === 'areas' ? `<button class="btn ghost sm" data-action="guide-edit" data-area="${x.id}">${t.editGuide}</button>` : ''}<button class="del" data-action="delete" data-kind="${kind}" data-id="${x.id}" aria-label="${esc(t.deleteLabel(x.name))}">${ICON.x}</button></span></li>`,
           )
           .join('')}</ul>`
       : `<p class="muted small">${t.none}</p>`;
@@ -960,6 +1041,8 @@ document.addEventListener('click', (e) => {
     storage((s) => s.setItem(KEY.lang, lang));
     return render();
   }
+  if (a === 'guide') return openGuide(Number(el.dataset.area));
+  if (a === 'guide-edit') return openGuideEditor(Number(el.dataset.area));
   if (a === 'post-edit') {
     state.editing = true;
     state.draft = state.board.posts.find((p) => p.member_id === state.me.id)?.body ?? '';
@@ -1015,6 +1098,11 @@ document.addEventListener('submit', (e) => {
   const form = e.target.closest('[data-form]');
   if (!form) return;
   e.preventDefault();
+  if (form.dataset.form === 'guide') {
+    const btn = form.querySelector('.btn.primary');
+    btn.disabled = true;
+    return run(() => saveGuide(Number(form.dataset.area), form.elements.guide_ja.value, form.elements.guide_en.value)).finally(() => (btn.disabled = false));
+  }
   if (form.dataset.form === 'post') {
     const text = form.elements.body.value.trim();
     if ([...text].length > POST_MAX) return;
