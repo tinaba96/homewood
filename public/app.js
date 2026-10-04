@@ -283,6 +283,7 @@ const ICON = {
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2 2 0 0 1 6 3.5h5v16H6a2 2 0 0 0-2 2z"/><path d="M20 5.5a2 2 0 0 0-2-2h-5v16h5a2 2 0 0 1 2 2z"/></svg>',
+  broom: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 3.5l6 6"/><path d="M12 6l6 6-5.5 5.5a4 4 0 0 1-5.7 0L4 14.7z"/><path d="M8 12l4 4"/></svg>',
   heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 8a4.2 4.2 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z"/></svg>',
   share:
     '<svg class="inline-icon" viewBox="0 0 24 24" role="img"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5M7 10H5.5v11h13V10H17"/></svg>',
@@ -769,11 +770,12 @@ function choreAlertHTML() {
   const due = left === 0 ? t.dueToday : left === 1 ? t.dueTomorrow : t.dueIn(left);
   if (mine.length) {
     return `<a class="alert ${left <= 1 ? 'urgent' : ''}" href="#chores">
+      <span class="alert-icon" aria-hidden="true">${ICON.broom}</span>
       <div class="alert-body">
         <b>${t.choreAlert(mine.length)}</b>
         <span>${mine.map((r) => esc(r.area.name)).join(t.sep)} · ${due}</span>
       </div>
-      <span class="alert-go">${t.choreAlertGo}${ICON.right}</span>
+      <span class="alert-go" aria-label="${t.choreAlertGo}">${ICON.right}</span>
     </a>`;
   }
   const names = [...new Set(pending.map((r) => r.member.name))].map(esc).join(t.sep);

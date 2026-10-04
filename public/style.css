@@ -211,18 +211,26 @@ body:has(input:focus) .tabbar { visibility: hidden; }
 
 /* ---------- chore alert on the board ---------- */
 .alert {
-  display: flex; align-items: center; gap: 10px; min-height: 60px; margin-bottom: 14px; padding: 12px 10px 12px 16px;
-  border-radius: 14px; background: var(--warn-soft); color: var(--ink); text-decoration: none;
-  border-left: 5px solid var(--warn);
+  display: flex; align-items: center; gap: 12px; min-height: 76px; margin-bottom: 16px; padding: 14px 14px 14px 16px;
+  border-radius: 16px; background: var(--warn); color: #fff; text-decoration: none;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--warn) 35%, transparent);
 }
-.alert.urgent { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-left-color: var(--danger); }
-.alert.soft { background: var(--accent-soft); border-left-color: var(--accent-line); min-height: 48px; }
-.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
-.alert-body b { font-size: 15px; }
-.alert.urgent .alert-body b { color: var(--danger); }
-.alert-go { display: inline-flex; align-items: center; gap: 2px; flex: none; font-size: 13px; font-weight: 800; color: var(--accent); }
-.alert-go svg { width: 18px; height: 18px; }
+.alert.urgent { background: var(--danger); box-shadow: 0 6px 18px color-mix(in srgb, var(--danger) 40%, transparent); animation: alert-pulse 2.2s ease-in-out infinite; }
+@keyframes alert-pulse { 50% { box-shadow: 0 6px 26px color-mix(in srgb, var(--danger) 70%, transparent); } }
+.alert-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; background: rgb(255 255 255 / .22); }
+.alert-icon svg { width: 24px; height: 24px; stroke-width: 2.4; }
+.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.alert-body b { font-size: 17px; line-height: 1.3; }
+.alert-body span { opacity: .92; }
+.alert-go { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; background: rgb(255 255 255 / .22); color: #fff; }
+.alert-go svg { width: 20px; height: 20px; stroke-width: 2.6; }
+.alert.soft {
+  min-height: 52px; padding: 10px 12px 10px 14px; background: var(--accent-soft); color: var(--ink);
+  box-shadow: none; border-left: 5px solid var(--accent-line);
+}
+.alert.soft .alert-go { background: none; color: var(--accent); }
 .alert:active { transform: scale(.98); }
+@media (prefers-color-scheme: dark) { .alert, .alert.urgent { color: #fff; } }
 
 /* ---------- board ---------- */
 .post { padding: 14px 16px 12px; }
