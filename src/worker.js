@@ -77,7 +77,7 @@ async function api(req, env, url) {
   if (path === '/bootstrap' && method === 'GET') {
     const [members, areas] = await db.batch([
       db.prepare('SELECT id, name FROM members ORDER BY id'),
-      db.prepare('SELECT id, name, guide_ja, guide_en, image FROM areas ORDER BY id'),
+      db.prepare('SELECT id, name, guide_ja, guide_en, images FROM areas ORDER BY id'),
     ]);
     return json({ members: members.results, areas: areas.results });
   }
@@ -103,7 +103,7 @@ async function api(req, env, url) {
     const table = TABLES[col[1]];
     if (method === 'POST' && !col[2]) {
       const row = await db
-        .prepare(`INSERT INTO ${table} (name) VALUES (?) RETURNING ${table === 'areas' ? 'id, name, guide_ja, guide_en, image' : 'id, name'}`)
+        .prepare(`INSERT INTO ${table} (name) VALUES (?) RETURNING ${table === 'areas' ? 'id, name, guide_ja, guide_en, images' : 'id, name'}`)
         .bind(name(body.name))
         .first();
       return json(row, 201);

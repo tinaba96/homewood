@@ -807,7 +807,15 @@ async function toggleLike(owner, on) {
 
 /* ---------- 掃除ガイド ---------- */
 const guideText = (area) => (lang === 'en' ? area.guide_en || area.guide_ja : area.guide_ja || area.guide_en) || '';
-const hasGuide = (area) => !!(area.guide_ja || area.guide_en || area.image);
+const guideImages = (area) => {
+  try {
+    const list = JSON.parse(area.images || '[]');
+    return Array.isArray(list) ? list.filter((i) => i && typeof i.src === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+const hasGuide = (area) => !!(area.guide_ja || area.guide_en || guideImages(area).length);
 
 function guideHTML(text) {
   const out = [];
@@ -836,7 +844,12 @@ function openGuide(areaId) {
     <h3 id="sheet-title" tabindex="-1" autofocus>${esc(t.guideTitle(area.name))}</h3>
     ${onlyOther ? `<div class="when">${t.guideOtherLang}</div>` : ''}
     <div class="guide">${text ? guideHTML(text) : `<p class="muted">${t.noGuide}</p>`}</div>
-    ${area.image ? `<img class="guide-img" src="${esc(area.image)}" alt="" loading="lazy">` : ''}
+    ${guideImages(area)
+      .map((i) => {
+        const cap = (lang === 'en' ? i.en || i.ja : i.ja || i.en) || '';
+        return `<figure class="guide-fig"><img class="guide-img" src="${esc(i.src)}" alt="${esc(cap)}" loading="lazy">${cap ? `<figcaption>${esc(cap)}</figcaption>` : ''}</figure>`;
+      })
+      .join('')}
     <button class="btn ghost block" data-action="close">${t.close}</button>`;
   sheet.showModal();
 }
