@@ -131,7 +131,7 @@ async function api(req, env, url) {
     if (method === 'PUT') {
       const d = date(body.date);
       const slot = Number(body.slot);
-      if (![0, 1, 2].includes(slot)) throw bad('invalid', 'slot');
+      if (![0, 1, 2, 3].includes(slot)) throw bad('invalid', 'slot');
       const member = int(body.member_id, 'member_id');
       if (body.level == null) {
         await db

@@ -1,6 +1,6 @@
 // homewood — シェアハウス用 洗濯機予約 & 掃除当番（スマホ前提）
 
-const SLOT_END = [12, 18, 24]; // 午前 / 午後 / 夜 の終わりの時刻
+const SLOT_END = [12, 15, 19, 23]; // 朝 9-12 / 昼 12-15 / 夕方 15-19 / 夜 19-23 の終わりの時刻
 const TABS = ['board', 'laundry', 'chores', 'settings'];
 const POST_MAX = 280;
 const KEY = {
@@ -16,9 +16,10 @@ const I18N = {
   ja: {
     langName: '日本語',
     slots: [
-      ['午前', '〜12時'],
-      ['午後', '12〜18時'],
-      ['夜', '18時〜'],
+      ['朝', '9〜12時'],
+      ['昼', '12〜15時'],
+      ['夕方', '15〜19時'],
+      ['夜', '19〜23時'],
     ],
     level: { must: '絶対使う', maybe: '使うかも' },
     levelNote: { must: 'この時間に必ず使う', maybe: '使う可能性がある' },
@@ -141,9 +142,10 @@ const I18N = {
   en: {
     langName: 'English',
     slots: [
-      ['Morning', 'until 12:00'],
-      ['Afternoon', '12:00–18:00'],
-      ['Evening', 'from 18:00'],
+      ['AM', '9–12'],
+      ['Midday', '12–15'],
+      ['PM', '15–19'],
+      ['Night', '19–23'],
     ],
     level: { must: 'Definitely', maybe: 'Maybe' },
     levelNote: { must: 'I will use it in this slot', maybe: 'I might use it' },

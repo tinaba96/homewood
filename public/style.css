@@ -147,7 +147,7 @@ body:has(input:focus) .tabbar { visibility: hidden; }
 .swatch.must { background: var(--accent); }
 .swatch.maybe { background: var(--accent-soft); border: 1.5px dashed var(--accent-line); }
 
-.grid { display: grid; grid-template-columns: 46px repeat(3, minmax(0, 1fr)); gap: 6px; }
+.grid { display: grid; grid-template-columns: 42px repeat(4, minmax(0, 1fr)); gap: 5px; }
 .is-loading { opacity: .45; transition: opacity .2s; }
 .colhead {
   position: sticky; top: var(--safe-t); z-index: 2;
@@ -155,9 +155,10 @@ body:has(input:focus) .tabbar { visibility: hidden; }
   text-align: center; font-size: 11px; color: var(--muted); line-height: 1.3;
 }
 .colhead b { display: block; color: var(--ink); font-size: 14px; }
+.colhead { font-variant-numeric: tabular-nums; }
 .day {
   display: flex; flex-direction: column; justify-content: center;
-  font-size: 15px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums;
+  font-size: 14px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums;
 }
 .day small { font-size: 11px; font-weight: 700; color: var(--muted); }
 .day.today, .day.today small { color: var(--accent); }
@@ -167,15 +168,15 @@ body:has(input:focus) .tabbar { visibility: hidden; }
 
 .cell {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  min-height: 62px; padding: 6px; border: 1px solid var(--line); border-radius: 12px;
+  min-height: 62px; padding: 5px 4px; border: 1px solid var(--line); border-radius: 11px;
   background: var(--card); text-align: left;
 }
 .cell.has-must { background: color-mix(in srgb, var(--accent) 7%, var(--card)); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
 .cell.past { background: transparent; border-style: dashed; opacity: .45; }
 .cell .plus { margin: auto; color: var(--muted); opacity: .4; font-size: 22px; font-weight: 300; line-height: 1; }
 .chip {
-  display: block; max-width: 100%; padding: 2px 8px; border-radius: 999px;
-  font-size: 12px; font-weight: 700; line-height: 1.45;
+  display: block; max-width: 100%; padding: 2px 6px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; line-height: 1.45;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chip.must { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
