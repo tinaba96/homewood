@@ -1,6 +1,9 @@
 // homewood — シェアハウス用 洗濯機予約 & 掃除当番（スマホ前提）
 
-const SLOT_END = [12, 15, 19, 23]; // 朝 9-12 / 昼 12-15 / 夕方 15-19 / 夜 19-23 の終わりの時刻
+const SLOT_END = [12, 15, 19, 23];
+const NIGHT = 3;
+// 電気代節約のため、平日は夜・土日は終日がおすすめ（厳密なルールではない）
+const isRecommended = (d, slot) => d.getDay() === 0 || d.getDay() === 6 || slot === NIGHT; // 朝 9-12 / 昼 12-15 / 夕方 15-19 / 夜 19-23 の終わりの時刻
 const TABS = ['board', 'laundry', 'chores', 'settings'];
 const POST_MAX = 280;
 const KEY = {
@@ -93,6 +96,10 @@ const I18N = {
     shareNote: '同じ枠に何人でも予約できます',
     mustNote: (names) => `${names}さんが「絶対使う」予定です。使っても大丈夫です。早めに取り出すなど、少しだけ気づかいを。`,
     legendNote: '予約は予定の共有です。「絶対使う」の人がいても洗濯機は使えます。',
+    recommended: 'おすすめ',
+    recNote: '電気代節約のため、平日は夜・土日は終日がおすすめ。それ以外の時間は大家さんに声をかけられるかも（急ぎならOK）。',
+    recYes: 'おすすめの時間です',
+    recNo: 'おすすめ外の時間です。電気代節約のため、できれば平日は夜・土日に。急ぎならOK。',
     cancelBooking: '予約を取り消す',
     booked: (l) => `「${l}」で予約しました`,
     canceled: '予約を取り消しました',
@@ -220,6 +227,10 @@ const I18N = {
     shareNote: 'Any number of people can book the same slot',
     mustNote: (names) => `${names} definitely plans to use it. You can still use it. Just be considerate, like taking your laundry out promptly.`,
     legendNote: 'Bookings just share plans. You can still use the machine when someone picked "Definitely".',
+    recommended: 'Recommended',
+    recNote: 'To save on electricity: weekday nights and anytime on weekends. At other times the landlord may come down to check (urgent is OK).',
+    recYes: 'Recommended time',
+    recNo: 'Outside the recommended times. To save electricity, try weekday nights or weekends if you can. Urgent is OK.',
     cancelBooking: 'Cancel booking',
     booked: (l) => `Booked as "${l}"`,
     canceled: 'Booking canceled',
@@ -590,7 +601,8 @@ function laundryHTML() {
       const list = (byCell[`${key}|${s}`] ?? []).sort(byLevel);
       const past = key < todayKey || (isToday && now.getHours() >= end);
       const musts = list.filter((r) => r.level === 'must').length;
-      const cls = ['cell', past && 'past', musts && 'has-must'].filter(Boolean).join(' ');
+      const rec = isRecommended(d, s);
+      const cls = ['cell', past && 'past', musts && 'has-must', rec && 'rec'].filter(Boolean).join(' ');
       const chips = list
         .map(
           (r) =>
@@ -603,7 +615,7 @@ function laundryHTML() {
           ? t.ended
           : t.free;
       rows += `<button class="${cls}" data-action="slot" data-date="${key}" data-slot="${s}" ${past ? 'disabled' : ''}
-        aria-label="${esc(`${mdw(d)} ${t.slots[s][0]}${t.colon}${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
+        aria-label="${esc(`${mdw(d)} ${t.slots[s][0]}${rec ? ` (${t.recommended})` : ''}${t.colon}${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
     });
   }
 
@@ -618,9 +630,10 @@ function laundryHTML() {
     <div class="legend">
       <span><i class="swatch must"></i>${t.level.must}</span>
       <span><i class="swatch maybe"></i>${t.level.maybe}</span>
-      <span>${t.tapToBook}</span>
+      <span><i class="swatch rec"></i>${t.recommended}</span>
     </div>
-    <p class="legend-note">${t.legendNote}</p>
+    <p class="rec-note">${t.recNote}</p>
+    <p class="legend-note">${t.tapToBook}${lang === 'en' ? '. ' : '。'}${t.legendNote}</p>
     <div class="grid ${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       <div class="colhead"></div>
       ${t.slots.map(([label, time]) => `<div class="colhead"><b>${label}</b>${time}</div>`).join('')}
@@ -987,6 +1000,7 @@ function openSlot(date, slot) {
   $('#sheet-body').innerHTML = `
     <h3 id="sheet-title" tabindex="-1" autofocus>${mdw(d)} ${t.slots[slot][0]}</h3>
     <div class="when">${t.slots[slot][1]}</div>
+    ${isRecommended(d, slot) ? `<p class="rec-badge">${ICON.check}${t.recYes}</p>` : `<p class="rec-warn">${t.recNo}</p>`}
     <div class="who-list">${who}</div>
     ${
       othersMust.length
@@ -1196,7 +1210,10 @@ let drag = null;
 sheet.addEventListener(
   'touchstart',
   (e) => {
-    if (sheet.scrollTop > 0) return;
+    // 上部のつかみ場所からは常に、それ以外は中身がスクロールしないときだけ下スワイプで閉じる
+    const fromHandle = !!e.target.closest('.handle-zone');
+    const scrollable = sheet.scrollHeight > sheet.clientHeight + 1;
+    if (!fromHandle && (scrollable || sheet.scrollTop > 0)) return;
     drag = { y: e.touches[0].clientY, dy: 0 };
     sheet.style.transition = 'none';
   },
