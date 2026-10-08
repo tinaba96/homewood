@@ -195,6 +195,8 @@ body:has(input:focus) .tabbar { visibility: hidden; }
   font-size: 11.5px; font-weight: 700; line-height: 1.45;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.chip small { display: block; font-size: 10px; font-weight: 700; line-height: 1.2; opacity: .85; font-variant-numeric: tabular-nums; }
+.who-list .chip small { display: inline; font-size: inherit; }
 .chip.must { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
 .chip.maybe { background: var(--accent-soft); color: var(--accent); border: 1px dashed var(--accent-line); }
 .chip.mine { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ink); }
@@ -381,6 +383,12 @@ html:has(.sheet[open]) { overflow: hidden; }
 .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .1); }
 .lang-card .seg { display: flex; margin-top: 8px; }
 .lang-card .seg button { flex: 1; }
+.time-pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.time-pick select {
+  min-width: 132px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.time-pick select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .options { display: grid; gap: 8px; margin-bottom: 10px; }
 .opt {
   display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 16px;

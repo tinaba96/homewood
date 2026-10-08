@@ -1,6 +1,13 @@
 // homewood — シェアハウス用 洗濯機予約 & 掃除当番（スマホ前提）
 
+const SLOT_START = [9, 12, 15, 19];
 const SLOT_END = [12, 15, 19, 23];
+// 開始時刻の選択肢（30分刻み、その枠の中だけ）
+const slotTimes = (slot) => {
+  const out = [];
+  for (let h = SLOT_START[slot]; h < SLOT_END[slot]; h++) out.push(`${pad(h)}:00`, `${pad(h)}:30`);
+  return out;
+};
 const NIGHT = 3;
 // 電気代節約のため、平日は夜・土日は終日がおすすめ（厳密なルールではない）
 const isRecommended = (d, slot) => d.getDay() === 0 || d.getDay() === 6 || slot === NIGHT; // 朝 9-12 / 昼 12-15 / 夕方 15-19 / 夜 19-23 の終わりの時刻
@@ -101,7 +108,11 @@ const I18N = {
     recYes: 'おすすめの時間です',
     recNo: 'おすすめ外の時間です。電気代節約のため、できれば平日は夜・土日に。急ぎならOK。',
     cancelBooking: '予約を取り消す',
-    booked: (l) => `「${l}」で予約しました`,
+    booked: (l, time) => `「${l}」で予約しました${time ? `（${time}〜）` : ''}`,
+    startTime: '開始時間（任意）',
+    noTime: '指定しない',
+    fromTime: (time) => `${time}〜`,
+    saveTime: '時間を変更',
     canceled: '予約を取り消しました',
     saveFail: (m) => `保存できませんでした：${m}`,
     thanks: 'おつかれさまでした ✨',
@@ -232,7 +243,11 @@ const I18N = {
     recYes: 'Recommended time',
     recNo: 'Outside the recommended times. To save electricity, try weekday nights or weekends if you can. Urgent is OK.',
     cancelBooking: 'Cancel booking',
-    booked: (l) => `Booked as "${l}"`,
+    booked: (l, time) => `Booked as "${l}"${time ? ` (from ${time})` : ''}`,
+    startTime: 'Start time (optional)',
+    noTime: 'Not set',
+    fromTime: (time) => `from ${time}`,
+    saveTime: 'Update time',
     canceled: 'Booking canceled',
     saveFail: (m) => `Couldn't save: ${m}`,
     thanks: 'Thanks for cleaning ✨',
@@ -344,7 +359,10 @@ const md = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
 const mdw = (d) => t.dayFmt(md(d), t.wd[d.getDay()]);
 const weekIndex = (mon) => Math.floor(Date.UTC(mon.getFullYear(), mon.getMonth(), mon.getDate()) / 864e5 / 7);
 const memberName = (id) => state.members.find((m) => m.id === id)?.name ?? t.moved;
-const byLevel = (a, b) => (a.level === 'maybe') - (b.level === 'maybe') || a.member_id - b.member_id;
+// 同じ枠の中は「絶対使う」→「使うかも」、その中で時刻順（時刻なしは後ろ）
+const byLevel = (a, b) =>
+  (a.level === 'maybe') - (b.level === 'maybe') || (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || '').localeCompare(b.time || '') || a.member_id - b.member_id;
+const fromTime = (time) => (time ? t.fromTime(time) : '');
 const parseUtc = (s) => new Date(`${s.replace(' ', 'T')}Z`);
 const nowUtc = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 const AV_COLORS = ['#5f3dc4', '#c92a2a', '#0b7285', '#a61e4d', '#1864ab', '#2b8a3e', '#862e9c', '#d9480f'];
@@ -606,11 +624,11 @@ function laundryHTML() {
       const chips = list
         .map(
           (r) =>
-            `<span class="chip ${r.level} ${r.member_id === state.me.id ? 'mine' : ''}">${esc(memberName(r.member_id))}</span>`,
+            `<span class="chip ${r.level} ${r.member_id === state.me.id ? 'mine' : ''}">${esc(memberName(r.member_id))}${r.time ? `<small>${r.time}</small>` : ''}</span>`,
         )
         .join('');
       const said = list.length
-        ? list.map((r) => `${memberName(r.member_id)} ${t.level[r.level]}`).join(t.sep)
+        ? list.map((r) => `${memberName(r.member_id)} ${t.level[r.level]}${r.time ? ` ${fromTime(r.time)}` : ''}`).join(t.sep)
         : past
           ? t.ended
           : t.free;
@@ -983,7 +1001,7 @@ function openSlot(date, slot) {
   const d = new Date(`${date}T00:00:00`);
 
   const who = list.length
-    ? list.map((r) => `<span class="chip ${r.level}">${esc(memberName(r.member_id))} · ${t.level[r.level]}</span>`).join('')
+    ? list.map((r) => `<span class="chip ${r.level}">${esc(memberName(r.member_id))} · ${t.level[r.level]}${r.time ? ` · ${fromTime(r.time)}` : ''}</span>`).join('')
     : `<span class="muted small">${t.nobody}</span>`;
 
   const options = ['must', 'maybe']
@@ -1009,7 +1027,15 @@ function openSlot(date, slot) {
           ? `<p class="share-note">${t.shareNote}</p>`
           : ''
     }
+    <label class="time-pick">
+      <span>${t.startTime}</span>
+      <select name="time" aria-label="${t.startTime}">
+        <option value="">${t.noTime}</option>
+        ${slotTimes(slot).map((v) => `<option value="${v}" ${mine?.time === v ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+    </label>
     <div class="options">${options}</div>
+    ${mine ? `<button class="btn primary block" data-action="reserve" data-level="${mine.level}" data-keep="1" hidden>${t.saveTime}</button>` : ''}
     ${mine ? `<button class="btn danger block" data-action="reserve" data-level="">${t.cancelBooking}</button>` : ''}
     <button class="btn ghost block" data-action="close">${t.close}</button>`;
   sheet.dataset.date = date;
@@ -1021,19 +1047,20 @@ function openSlot(date, slot) {
 async function reserve(level) {
   const date = sheet.dataset.date;
   const slot = Number(sheet.dataset.slot);
+  const time = (level && sheet.querySelector('select[name="time"]')?.value) || null;
   const src = source();
   const prev = state.reservations;
   const current = prev.find((r) => r.date === date && r.slot === slot && r.member_id === state.me.id);
   sheet.close();
-  if ((current?.level ?? '') === level) return;
+  if ((current?.level ?? '') === level && (current?.time ?? null) === time) return;
 
   const rest = prev.filter((r) => !(r.date === date && r.slot === slot && r.member_id === state.me.id));
-  state.reservations = level ? [...rest, { date, slot, member_id: state.me.id, level }] : rest;
+  state.reservations = level ? [...rest, { date, slot, member_id: state.me.id, level, time }] : rest;
   render();
   buzz();
-  toast(level ? t.booked(t.level[level]) : t.canceled);
+  toast(level ? t.booked(t.level[level], time) : t.canceled);
   try {
-    await api('/laundry', { method: 'PUT', body: { date, slot, member_id: state.me.id, level: level || null } });
+    await api('/laundry', { method: 'PUT', body: { date, slot, member_id: state.me.id, level: level || null, time } });
     if (src) cache.set(src.key, state.reservations);
   } catch (e) {
     if (source()?.key === src?.key) {
@@ -1184,6 +1211,16 @@ document.addEventListener('submit', (e) => {
     // 続けて追加できるように同じ入力欄へ戻す
     view.querySelector(`[data-form="${kind}"] input`)?.focus();
   });
+});
+
+// 予約済みの枠で時刻を変えたら「時間を変更」ボタンを出す
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest('#sheet select[name="time"]');
+  if (!sel) return;
+  const keep = sheet.querySelector('[data-keep]');
+  if (!keep) return;
+  const mine = state.reservations.find((r) => r.date === sheet.dataset.date && r.slot === Number(sheet.dataset.slot) && r.member_id === state.me.id);
+  keep.hidden = (mine?.time ?? '') === sel.value;
 });
 
 // 掲示板の文字数カウンター（入力中は再描画しない）
