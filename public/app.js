@@ -109,7 +109,7 @@ const I18N = {
     recNo: 'おすすめ外の時間です。電気代節約のため、できれば平日は夜・土日に。急ぎならOK。',
     cancelBooking: '予約を取り消す',
     booked: (l, time) => `「${l}」で予約しました${time ? `（${time}〜）` : ''}`,
-    startTime: '開始時間（任意）',
+    startTimeMust: '開始時間（「絶対使う」のみ・任意）',
     noTime: '指定しない',
     fromTime: (time) => `${time}〜`,
     saveTime: '時間を変更',
@@ -244,7 +244,7 @@ const I18N = {
     recNo: 'Outside the recommended times. To save electricity, try weekday nights or weekends if you can. Urgent is OK.',
     cancelBooking: 'Cancel booking',
     booked: (l, time) => `Booked as "${l}"${time ? ` (from ${time})` : ''}`,
-    startTime: 'Start time (optional)',
+    startTimeMust: 'Start time ("Definitely" only, optional)',
     noTime: 'Not set',
     fromTime: (time) => `from ${time}`,
     saveTime: 'Update time',
@@ -1028,14 +1028,14 @@ function openSlot(date, slot) {
           : ''
     }
     <label class="time-pick">
-      <span>${t.startTime}</span>
-      <select name="time" aria-label="${t.startTime}">
+      <span>${t.startTimeMust}</span>
+      <select name="time" aria-label="${t.startTimeMust}">
         <option value="">${t.noTime}</option>
-        ${slotTimes(slot).map((v) => `<option value="${v}" ${mine?.time === v ? 'selected' : ''}>${v}</option>`).join('')}
+        ${slotTimes(slot).map((v) => `<option value="${v}" ${mine?.level === 'must' && mine?.time === v ? 'selected' : ''}>${v}</option>`).join('')}
       </select>
     </label>
     <div class="options">${options}</div>
-    ${mine ? `<button class="btn primary block" data-action="reserve" data-level="${mine.level}" data-keep="1" hidden>${t.saveTime}</button>` : ''}
+    ${mine?.level === 'must' ? `<button class="btn primary block" data-action="reserve" data-level="must" data-keep="1" hidden>${t.saveTime}</button>` : ''}
     ${mine ? `<button class="btn danger block" data-action="reserve" data-level="">${t.cancelBooking}</button>` : ''}
     <button class="btn ghost block" data-action="close">${t.close}</button>`;
   sheet.dataset.date = date;
@@ -1047,7 +1047,8 @@ function openSlot(date, slot) {
 async function reserve(level) {
   const date = sheet.dataset.date;
   const slot = Number(sheet.dataset.slot);
-  const time = (level && sheet.querySelector('select[name="time"]')?.value) || null;
+  // 時刻は「絶対使う」のときだけ
+  const time = (level === 'must' && sheet.querySelector('select[name="time"]')?.value) || null;
   const src = source();
   const prev = state.reservations;
   const current = prev.find((r) => r.date === date && r.slot === slot && r.member_id === state.me.id);

@@ -144,7 +144,8 @@ async function api(req, env, url) {
         if (!['must', 'maybe'].includes(body.level)) throw bad('invalid', 'level');
         // 任意の開始時刻。その枠の時間内（例: 夜なら 19:00〜22:59）だけ受け付ける
         let time = null;
-        if (body.time != null && body.time !== '') {
+        // 時刻は「絶対使う」のときだけ。「使うかも」では保存しない
+        if (body.level === 'must' && body.time != null && body.time !== '') {
           const m = /^(\d{2}):(\d{2})$/.exec(String(body.time));
           const h = m && Number(m[1]);
           if (!m || Number(m[2]) > 59 || h < SLOT_HOURS[slot][0] || h >= SLOT_HOURS[slot][1]) throw bad('invalid', 'time');
