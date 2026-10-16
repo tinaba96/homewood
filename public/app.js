@@ -147,6 +147,11 @@ const I18N = {
     choreAlert: (n) => `掃除が${n}件残っています`,
     choreAlertOthers: (names) => `${names}さんの掃除がまだです`,
     choreAlertGo: '掃除タブへ',
+    wishTitle: 'ほしい物',
+    wishNote: '掃除道具など、欲しいものを自由に追加。必要なものは割り勘で買います。',
+    wishPh: '例: 浴室用カビ取り剤',
+    wishEmpty: 'まだ何もありません。',
+    wishDelLabel: (n) => `「${n}」を削除`,
     howTo: 'やり方を見る',
     guideTitle: (n) => `${n} の掃除`,
     noGuide: 'まだガイドがありません。設定から書けます。',
@@ -282,6 +287,11 @@ const I18N = {
     choreAlert: (n) => `${n} cleaning ${n === 1 ? 'task' : 'tasks'} still to do`,
     choreAlertOthers: (names) => `${names} still ${names.includes(t.sep) ? 'have' : 'has'} cleaning to do`,
     choreAlertGo: 'Go to Cleaning',
+    wishTitle: 'Wish list',
+    wishNote: 'Add anything you want, like cleaning supplies. Shared items are split between us.',
+    wishPh: 'e.g. mold remover for bathroom',
+    wishEmpty: 'Nothing yet.',
+    wishDelLabel: (n) => `Delete "${n}"`,
     howTo: 'How to clean',
     guideTitle: (n) => `Cleaning the ${n}`,
     noGuide: 'No guide yet. You can write one in Settings.',
@@ -324,6 +334,8 @@ const sheet = $('#sheet');
 const state = {
   members: [],
   areas: [],
+  wishes: [], // ほしい物リスト（住人なら誰でも追加できる）
+  wishDraft: '', // ほしい物の入力途中の文字（再描画で消えないように）
   me: null,
   picking: false, // ユーザー選択画面を表示中
   tab: 'board',
@@ -466,6 +478,7 @@ function source() {
 function applyBase(data) {
   state.members = data.members;
   state.areas = data.areas;
+  state.wishes = data.wishes ?? [];
   const saved = Number(storage((s) => s.getItem(KEY.me)));
   state.me = state.members.find((m) => m.id === saved) ?? null;
 }
@@ -732,7 +745,29 @@ function choresHTML() {
     })
     .join('');
 
-  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>`;
+  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>${wishHTML()}`;
+}
+
+// ほしい物リスト（追加は誰でも、削除は追加した本人だけ）
+function wishHTML() {
+  const items = state.wishes
+    .map((w) => {
+      const who = state.members.find((m) => m.id === w.member_id)?.name;
+      const mine = w.member_id === state.me.id;
+      return `<li><span class="li-name">${esc(w.body)}${who ? `<small class="muted"> ${esc(who)}</small>` : ''}</span>${
+        mine ? `<button class="del" data-action="wish-del" data-id="${w.id}" aria-label="${esc(t.wishDelLabel(w.body))}">${ICON.x}</button>` : ''
+      }</li>`;
+    })
+    .join('');
+  return `<section class="card wish">
+    <h3>${t.wishTitle}</h3>
+    <p class="sub">${t.wishNote}</p>
+    ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">${t.wishEmpty}</p>`}
+    <form class="add" data-form="wish">
+      <input name="body" value="${esc(state.wishDraft)}" placeholder="${t.wishPh}" maxlength="100" autocomplete="off" enterkeyhint="done" aria-label="${t.wishTitle}">
+      <button class="btn">${t.add}</button>
+    </form>
+  </section>`;
 }
 
 /* ---------- 掲示板（ひとり1枚、上書きのみ） ---------- */
@@ -1172,6 +1207,14 @@ document.addEventListener('click', (e) => {
     ev.prompt();
     return ev.userChoice.finally(render);
   }
+  if (a === 'wish-del') {
+    const id = Number(el.dataset.id);
+    return run(async () => {
+      await api(`/wishes/${id}`, { method: 'DELETE' });
+      state.wishes = state.wishes.filter((w) => w.id !== id);
+      render();
+    });
+  }
   if (a === 'delete') {
     const kind = el.dataset.kind;
     const id = Number(el.dataset.id);
@@ -1194,6 +1237,18 @@ document.addEventListener('submit', (e) => {
     const btn = form.querySelector('.btn.primary');
     btn.disabled = true;
     return run(() => saveGuide(Number(form.dataset.area), form.elements.guide_ja.value, form.elements.guide_en.value)).finally(() => (btn.disabled = false));
+  }
+  if (form.dataset.form === 'wish') {
+    const input = form.elements.body;
+    const text = input.value.trim();
+    if (!text) return input.focus();
+    return run(async () => {
+      const row = await api('/wishes', { method: 'POST', body: { body: text, member_id: state.me.id } });
+      state.wishes.push(row);
+      state.wishDraft = '';
+      render();
+      view.querySelector('[data-form="wish"] input')?.focus();
+    });
   }
   if (form.dataset.form === 'post') {
     const text = form.elements.body.value.trim();
@@ -1226,6 +1281,8 @@ document.addEventListener('change', (e) => {
 
 // 掲示板の文字数カウンター（入力中は再描画しない）
 document.addEventListener('input', (e) => {
+  const wi = e.target.closest('[data-form="wish"] input');
+  if (wi) state.wishDraft = wi.value;
   const ta = e.target.closest('[data-form="post"] textarea');
   if (!ta) return;
   state.draft = ta.value;
@@ -1290,7 +1347,9 @@ window.addEventListener('hashchange', () => {
 
 // アプリに戻ってきた時・定期的に最新化（入力中の設定画面と予約シート表示中は除く）
 function refresh() {
+  // 入力中（ほしい物の入力欄にフォーカス中）も再描画しない
   if (!state.me || state.picking || state.tab === 'settings' || sheet.open || state.editing) return;
+  if (document.activeElement?.closest('[data-form="wish"]')) return;
   loadBase()
     .then(() => show(state.tab, { silent: true }))
     .catch(() => {

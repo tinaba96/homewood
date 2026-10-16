@@ -302,6 +302,11 @@ body:has(textarea:focus) .tabbar { visibility: hidden; }
 }
 .back svg { width: 22px; height: 22px; }
 
+/* ---------- wish list (chores tab) ---------- */
+.wish { margin-top: 16px; }
+.wish h3 { margin: 0 0 2px; font-size: 18px; font-weight: 800; }
+.wish .sub { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+
 /* ---------- settings ---------- */
 .list { margin: 0 0 12px; padding: 0; list-style: none; }
 .list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--line); font-size: 16px; }

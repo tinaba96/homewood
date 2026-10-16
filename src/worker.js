@@ -15,6 +15,8 @@ const MESSAGES = {
     nameTooLong: () => '名前は30文字以内にしてください',
     bodyTooLong: () => '280文字以内にしてください',
     guideTooLong: () => 'ガイドは2000文字以内にしてください',
+    wishRequired: () => '欲しい物を入力してください',
+    wishTooLong: () => '100文字以内にしてください',
     ownLike: () => '自分の投稿にはいいねできません',
     notFound: () => 'Not found',
     unknownRef: () => '存在しないメンバーまたは場所です',
@@ -27,6 +29,8 @@ const MESSAGES = {
     nameTooLong: () => 'Names must be 30 characters or fewer',
     bodyTooLong: () => 'Please keep it within 280 characters',
     guideTooLong: () => 'Please keep the guide within 2000 characters',
+    wishRequired: () => 'Please enter an item',
+    wishTooLong: () => 'Please keep it within 100 characters',
     ownLike: () => "You can't like your own post",
     notFound: () => 'Not found',
     unknownRef: () => 'That resident or area no longer exists',
@@ -77,11 +81,29 @@ async function api(req, env, url) {
 
   // 初期表示に必要なメンバーと掃除場所
   if (path === '/bootstrap' && method === 'GET') {
-    const [members, areas] = await db.batch([
+    const [members, areas, wishes] = await db.batch([
       db.prepare('SELECT id, name FROM members ORDER BY id'),
       db.prepare('SELECT id, name, guide_ja, guide_en, images FROM areas ORDER BY id'),
+      db.prepare('SELECT id, body, member_id FROM wishes ORDER BY id'),
     ]);
-    return json({ members: members.results, areas: areas.results });
+    return json({ members: members.results, areas: areas.results, wishes: wishes.results });
+  }
+
+  // ほしい物リスト: 追加は誰でも、削除は画面側で追加した本人だけ出す
+  if (path === '/wishes' && method === 'POST') {
+    const text = typeof body.body === 'string' ? body.body.trim() : '';
+    if (!text) throw bad('wishRequired');
+    if ([...text].length > 100) throw bad('wishTooLong');
+    const row = await db
+      .prepare('INSERT INTO wishes (body, member_id) VALUES (?, ?) RETURNING id, body, member_id')
+      .bind(text, int(body.member_id, 'member_id'))
+      .first();
+    return json(row, 201);
+  }
+  const wish = path.match(/^\/wishes\/(\d+)$/);
+  if (wish && method === 'DELETE') {
+    await db.prepare('DELETE FROM wishes WHERE id = ?').bind(int(wish[1], 'id')).run();
+    return json({ ok: true });
   }
 
   // 掃除場所のガイド更新
