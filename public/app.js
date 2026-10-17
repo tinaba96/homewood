@@ -155,7 +155,7 @@ const I18N = {
     splitTitle: '割り勘',
     splitNote: '買った人が金額とメアドを登録。ほかの人は自分の分を送ったら「送った」を押す（1人分＝金額÷住人数、切り上げ）。',
     splitItemPh: '品名',
-    splitAmountPh: '金額（円）',
+    splitAmountPh: '金額（CAD）',
     splitEmailPh: '購入者のメールアドレス',
     splitBuyer: (n) => `購入: ${n}`,
     splitEach: (y) => `1人 ${y}`,
@@ -308,7 +308,7 @@ const I18N = {
     splitTitle: 'Split bills',
     splitNote: 'The buyer enters the amount and email. Others tap "Sent" after paying their share (share = amount ÷ residents, rounded up).',
     splitItemPh: 'Item',
-    splitAmountPh: 'Amount (yen)',
+    splitAmountPh: 'Amount (CAD)',
     splitEmailPh: "Buyer's email",
     splitBuyer: (n) => `Paid by ${n}`,
     splitEach: (y) => `${y} each`,
@@ -777,7 +777,7 @@ function choresHTML() {
 }
 
 // 割り勘（全員均等。送金済みの人は「送った」、全員送ったら「完了」）
-const yen = (v) => `¥${v.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP')}`;
+const cad = (v) => `CAD ${v.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP')}`;
 function splitHTML() {
   const n = state.members.length;
   const cards = state.splits
@@ -786,7 +786,7 @@ function splitHTML() {
       const isBuyer = s.buyer_id === state.me.id;
       const payers = state.members.filter((m) => m.id !== s.buyer_id);
       const allPaid = payers.every((m) => s.paid.includes(m.id));
-      const share = yen(Math.ceil(s.amount / n));
+      const share = cad(Math.ceil(s.amount / n));
       const rows = payers
         .map((m) => {
           const sent = s.paid.includes(m.id);
@@ -797,7 +797,7 @@ function splitHTML() {
         .join('');
       return `<div class="card split ${allPaid ? 'is-done' : ''}">
         <div class="split-head">
-          <div><b>${esc(s.item)}</b> <span class="muted">${yen(s.amount)}</span></div>
+          <div><b>${esc(s.item)}</b> <span class="muted">${cad(s.amount)}</span></div>
           ${allPaid ? `<span class="badge">${t.splitDone}</span>` : ''}
         </div>
         <div class="muted small">${buyerName ? esc(t.splitBuyer(buyerName)) : ''} · <a href="mailto:${esc(s.email)}">${esc(s.email)}</a> · ${t.splitEach(share)}</div>
