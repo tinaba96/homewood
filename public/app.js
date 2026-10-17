@@ -152,6 +152,19 @@ const I18N = {
     wishPh: '例: 浴室用カビ取り剤',
     wishEmpty: 'まだ何もありません。',
     wishDelLabel: (n) => `「${n}」を削除`,
+    splitTitle: '割り勘',
+    splitNote: '買った人が金額とメアドを登録。ほかの人は自分の分を送ったら「送った」を押す（1人分＝金額÷住人数、切り上げ）。',
+    splitItemPh: '品名',
+    splitAmountPh: '金額（円）',
+    splitEmailPh: '購入者のメールアドレス',
+    splitBuyer: (n) => `購入: ${n}`,
+    splitEach: (y) => `1人 ${y}`,
+    splitSent: '送った',
+    splitNotYet: '未送金',
+    splitDone: '完了',
+    splitEmpty: 'まだ登録がありません。',
+    splitDelete: '削除',
+    splitConfirmDelete: 'この割り勘を削除しますか？',
     howTo: 'やり方を見る',
     guideTitle: (n) => `${n} の掃除`,
     noGuide: 'まだガイドがありません。設定から書けます。',
@@ -292,6 +305,19 @@ const I18N = {
     wishPh: 'e.g. mold remover for bathroom',
     wishEmpty: 'Nothing yet.',
     wishDelLabel: (n) => `Delete "${n}"`,
+    splitTitle: 'Split bills',
+    splitNote: 'The buyer enters the amount and email. Others tap "Sent" after paying their share (share = amount ÷ residents, rounded up).',
+    splitItemPh: 'Item',
+    splitAmountPh: 'Amount (yen)',
+    splitEmailPh: "Buyer's email",
+    splitBuyer: (n) => `Paid by ${n}`,
+    splitEach: (y) => `${y} each`,
+    splitSent: 'Sent',
+    splitNotYet: 'Not yet',
+    splitDone: 'Done',
+    splitEmpty: 'Nothing yet.',
+    splitDelete: 'Delete',
+    splitConfirmDelete: 'Delete this bill split?',
     howTo: 'How to clean',
     guideTitle: (n) => `Cleaning the ${n}`,
     noGuide: 'No guide yet. You can write one in Settings.',
@@ -336,6 +362,7 @@ const state = {
   areas: [],
   wishes: [], // ほしい物リスト（住人なら誰でも追加できる）
   wishDraft: '', // ほしい物の入力途中の文字（再描画で消えないように）
+  splits: [], // 割り勘（paid = 送金済みの住人 id の一覧）
   me: null,
   picking: false, // ユーザー選択画面を表示中
   tab: 'board',
@@ -479,6 +506,7 @@ function applyBase(data) {
   state.members = data.members;
   state.areas = data.areas;
   state.wishes = data.wishes ?? [];
+  state.splits = data.splits ?? [];
   const saved = Number(storage((s) => s.getItem(KEY.me)));
   state.me = state.members.find((m) => m.id === saved) ?? null;
 }
@@ -745,7 +773,50 @@ function choresHTML() {
     })
     .join('');
 
-  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>${wishHTML()}`;
+  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>${wishHTML()}${splitHTML()}`;
+}
+
+// 割り勘（全員均等。送金済みの人は「送った」、全員送ったら「完了」）
+const yen = (v) => `¥${v.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP')}`;
+function splitHTML() {
+  const n = state.members.length;
+  const cards = state.splits
+    .map((s) => {
+      const buyerName = state.members.find((m) => m.id === s.buyer_id)?.name;
+      const isBuyer = s.buyer_id === state.me.id;
+      const payers = state.members.filter((m) => m.id !== s.buyer_id);
+      const allPaid = payers.every((m) => s.paid.includes(m.id));
+      const share = yen(Math.ceil(s.amount / n));
+      const rows = payers
+        .map((m) => {
+          const sent = s.paid.includes(m.id);
+          const can = m.id === state.me.id || isBuyer; // 自分の分か、購入者だけ切り替えられる
+          return `<li><span class="li-name">${esc(m.name)} <small class="muted">${share}</small></span>
+            <button class="btn ${sent ? 'undo' : 'ghost'} sm" data-action="split-paid" data-id="${s.id}" data-member="${m.id}" data-paid="${sent ? 0 : 1}" aria-pressed="${sent}" ${can ? '' : 'disabled'}>${sent ? t.splitSent : t.splitNotYet}</button></li>`;
+        })
+        .join('');
+      return `<div class="card split ${allPaid ? 'is-done' : ''}">
+        <div class="split-head">
+          <div><b>${esc(s.item)}</b> <span class="muted">${yen(s.amount)}</span></div>
+          ${allPaid ? `<span class="badge">${t.splitDone}</span>` : ''}
+        </div>
+        <div class="muted small">${buyerName ? esc(t.splitBuyer(buyerName)) : ''} · <a href="mailto:${esc(s.email)}">${esc(s.email)}</a> · ${t.splitEach(share)}</div>
+        ${rows ? `<ul class="list">${rows}</ul>` : ''}
+        ${isBuyer ? `<button class="howto" data-action="split-del" data-id="${s.id}">${t.splitDelete}</button>` : ''}
+      </div>`;
+    })
+    .join('');
+  return `<section class="wish">
+    <h3>${t.splitTitle}</h3>
+    <p class="sub">${t.splitNote}</p>
+    ${cards || `<p class="muted">${t.splitEmpty}</p>`}
+    <form class="split-form" data-form="split">
+      <input name="item" placeholder="${t.splitItemPh}" maxlength="100" autocomplete="off" aria-label="${t.splitItemPh}">
+      <input name="amount" placeholder="${t.splitAmountPh}" inputmode="numeric" autocomplete="off" aria-label="${t.splitAmountPh}">
+      <input name="email" type="email" placeholder="${t.splitEmailPh}" autocomplete="email" aria-label="${t.splitEmailPh}">
+      <button class="btn primary">${t.add}</button>
+    </form>
+  </section>`;
 }
 
 // ほしい物リスト（追加は誰でも、削除は追加した本人だけ）
@@ -1207,6 +1278,26 @@ document.addEventListener('click', (e) => {
     ev.prompt();
     return ev.userChoice.finally(render);
   }
+  if (a === 'split-paid') {
+    const id = Number(el.dataset.id);
+    const member = Number(el.dataset.member);
+    const paid = el.dataset.paid === '1';
+    return run(async () => {
+      await api(`/splits/${id}/paid`, { method: 'PUT', body: { member_id: member, paid } });
+      const s = state.splits.find((x) => x.id === id);
+      if (s) s.paid = paid ? [...s.paid.filter((m) => m !== member), member] : s.paid.filter((m) => m !== member);
+      render();
+    });
+  }
+  if (a === 'split-del') {
+    const id = Number(el.dataset.id);
+    if (!confirm(t.splitConfirmDelete)) return;
+    return run(async () => {
+      await api(`/splits/${id}`, { method: 'DELETE' });
+      state.splits = state.splits.filter((s) => s.id !== id);
+      render();
+    });
+  }
   if (a === 'wish-del') {
     const id = Number(el.dataset.id);
     return run(async () => {
@@ -1237,6 +1328,24 @@ document.addEventListener('submit', (e) => {
     const btn = form.querySelector('.btn.primary');
     btn.disabled = true;
     return run(() => saveGuide(Number(form.dataset.area), form.elements.guide_ja.value, form.elements.guide_en.value)).finally(() => (btn.disabled = false));
+  }
+  if (form.dataset.form === 'split') {
+    // form.elements.item は HTMLFormControlsCollection のメソッドと衝突するので namedItem で取る
+    const item = form.elements.namedItem('item');
+    const amount = form.elements.namedItem('amount');
+    const email = form.elements.namedItem('email');
+    if (!item.value.trim()) return item.focus();
+    if (!amount.value.trim()) return amount.focus();
+    if (!email.value.trim()) return email.focus();
+    return run(async () => {
+      const row = await api('/splits', {
+        method: 'POST',
+        body: { item: item.value, amount: amount.value.replace(/[,，\s]/g, ''), email: email.value, buyer_id: state.me.id },
+      });
+      state.splits.push(row);
+      render();
+      toast(t.added(row.item));
+    });
   }
   if (form.dataset.form === 'wish') {
     const input = form.elements.body;
@@ -1349,7 +1458,7 @@ window.addEventListener('hashchange', () => {
 function refresh() {
   // 入力中（ほしい物の入力欄にフォーカス中）も再描画しない
   if (!state.me || state.picking || state.tab === 'settings' || sheet.open || state.editing) return;
-  if (document.activeElement?.closest('[data-form="wish"]')) return;
+  if (document.activeElement?.closest('[data-form="wish"], [data-form="split"]')) return;
   loadBase()
     .then(() => show(state.tab, { silent: true }))
     .catch(() => {

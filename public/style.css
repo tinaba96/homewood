@@ -306,6 +306,18 @@ body:has(textarea:focus) .tabbar { visibility: hidden; }
 .wish { margin-top: 16px; }
 .wish h3 { margin: 0 0 2px; font-size: 18px; font-weight: 800; }
 .wish .sub { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.split { margin-top: 10px; }
+.split.is-done { border-color: transparent; background: var(--done-soft); }
+.split-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.split-head b { font-size: 16px; overflow-wrap: anywhere; }
+.split .list { margin-top: 8px; }
+.split-form { display: grid; gap: 8px; margin-top: 12px; }
+.split-form input {
+  width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); color: var(--ink); font: inherit; font-size: 16px;
+}
+.split-form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+.split-form .btn { min-height: 48px; justify-self: end; }
 
 /* ---------- settings ---------- */
 .list { margin: 0 0 12px; padding: 0; list-style: none; }

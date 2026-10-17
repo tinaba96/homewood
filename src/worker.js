@@ -17,6 +17,9 @@ const MESSAGES = {
     guideTooLong: () => 'ガイドは2000文字以内にしてください',
     wishRequired: () => '欲しい物を入力してください',
     wishTooLong: () => '100文字以内にしてください',
+    splitItemRequired: () => '品名を入力してください',
+    splitAmountInvalid: () => '金額は1円以上の整数で入力してください',
+    splitEmailInvalid: () => 'メールアドレスの形式が正しくありません',
     ownLike: () => '自分の投稿にはいいねできません',
     notFound: () => 'Not found',
     unknownRef: () => '存在しないメンバーまたは場所です',
@@ -31,6 +34,9 @@ const MESSAGES = {
     guideTooLong: () => 'Please keep the guide within 2000 characters',
     wishRequired: () => 'Please enter an item',
     wishTooLong: () => 'Please keep it within 100 characters',
+    splitItemRequired: () => 'Please enter an item name',
+    splitAmountInvalid: () => 'Enter a whole amount of 1 or more',
+    splitEmailInvalid: () => 'That email address does not look right',
     ownLike: () => "You can't like your own post",
     notFound: () => 'Not found',
     unknownRef: () => 'That resident or area no longer exists',
@@ -81,12 +87,50 @@ async function api(req, env, url) {
 
   // 初期表示に必要なメンバーと掃除場所
   if (path === '/bootstrap' && method === 'GET') {
-    const [members, areas, wishes] = await db.batch([
+    const [members, areas, wishes, splits, paid] = await db.batch([
       db.prepare('SELECT id, name FROM members ORDER BY id'),
       db.prepare('SELECT id, name, guide_ja, guide_en, images FROM areas ORDER BY id'),
       db.prepare('SELECT id, body, member_id FROM wishes ORDER BY id'),
+      db.prepare('SELECT id, item, amount, email, buyer_id FROM splits ORDER BY id'),
+      db.prepare('SELECT split_id, member_id FROM split_paid'),
     ]);
-    return json({ members: members.results, areas: areas.results, wishes: wishes.results });
+    // 割り勘の送金済みメンバーを、各割り勘に付け直す
+    const splitRows = splits.results.map((s) => ({ ...s, paid: paid.results.filter((p) => p.split_id === s.id).map((p) => p.member_id) }));
+    return json({ members: members.results, areas: areas.results, wishes: wishes.results, splits: splitRows });
+  }
+
+  // 割り勘: 買った人が登録し、ほかの住人が送ったらチェックする（全員均等）
+  if (path === '/splits' && method === 'POST') {
+    const item = typeof body.item === 'string' ? body.item.trim() : '';
+    if (!item) throw bad('splitItemRequired');
+    if ([...item].length > 100) throw bad('wishTooLong');
+    const amount = Number(body.amount);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000000) throw bad('splitAmountInvalid');
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('splitEmailInvalid');
+    const row = await db
+      .prepare('INSERT INTO splits (item, amount, email, buyer_id) VALUES (?, ?, ?, ?) RETURNING id, item, amount, email, buyer_id')
+      .bind(item, amount, email, int(body.buyer_id, 'buyer_id'))
+      .first();
+    return json({ ...row, paid: [] }, 201);
+  }
+  const split = path.match(/^\/splits\/(\d+)(\/paid)?$/);
+  if (split && !split[2] && method === 'DELETE') {
+    await db.prepare('DELETE FROM splits WHERE id = ?').bind(int(split[1], 'id')).run();
+    return json({ ok: true });
+  }
+  if (split && split[2] && method === 'PUT') {
+    const id = int(split[1], 'id');
+    const member = int(body.member_id, 'member_id');
+    await db
+      .prepare(
+        body.paid
+          ? 'INSERT OR IGNORE INTO split_paid (split_id, member_id) VALUES (?, ?)'
+          : 'DELETE FROM split_paid WHERE split_id = ? AND member_id = ?',
+      )
+      .bind(id, member)
+      .run();
+    return json({ ok: true });
   }
 
   // ほしい物リスト: 追加は誰でも、削除は画面側で追加した本人だけ出す
