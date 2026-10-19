@@ -153,7 +153,7 @@ const I18N = {
     wishEmpty: 'まだ何もありません。',
     wishDelLabel: (n) => `「${n}」を削除`,
     splitTitle: '割り勘',
-    splitNote: '買った人が金額とメアドを登録。ほかの人は自分の分を送ったら「送った」を押す（1人分＝金額÷住人数を有効数字1桁で切り上げ。差額は購入者の取り分）。',
+    splitNote: '買った人が金額とメアドを登録。ほかの人は自分の分を送ったら「送った」を押す（1人分＝金額÷住人数を小数第1位まで切り上げ。差額は購入者の取り分）。',
     splitItemPh: '品名',
     splitAmountPh: '金額（CAD）',
     splitEmailPh: '購入者のメールアドレス',
@@ -307,7 +307,7 @@ const I18N = {
     wishEmpty: 'Nothing yet.',
     wishDelLabel: (n) => `Delete "${n}"`,
     splitTitle: 'Split bills',
-    splitNote: 'The buyer enters the amount and email. Others tap "Sent" after paying their share (share = amount ÷ residents, rounded up to 1 significant digit; the difference goes to the buyer).',
+    splitNote: 'The buyer enters the amount and email. Others tap "Sent" after paying their share (share = amount ÷ residents, rounded up to one decimal place; the difference goes to the buyer).',
     splitItemPh: 'Item',
     splitAmountPh: 'Amount (CAD)',
     splitEmailPh: "Buyer's email",
@@ -779,14 +779,10 @@ function choresHTML() {
 }
 
 // 割り勘（全員均等。送金済みの人は「送った」、全員送ったら「完了」）
-const cad = (v) => `CAD ${v.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP')}`;
-// 有効数字1桁で切り上げ（例: 750 → 800, 1,240 → 2,000）。切り上げ分は購入者が受け取る形になる
-const roundUpSig1 = (x) => {
-  if (x < 10) return Math.ceil(x);
-  let p = 1;
-  while (p * 10 <= x) p *= 10;
-  return Math.ceil(x / p) * p;
-};
+const cad = (v) => `CAD ${v.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP', { maximumFractionDigits: 1 })}`;
+// 小数第1位まで切り上げ（例: 750 → 750, 333.33 → 333.4）。切り上げ分は購入者が受け取る形になる
+// 整数のまま10倍してから割る（小数の誤差で余計に切り上がらないように）
+const roundUpTenth = (amount, people) => Math.ceil((amount * 10) / people) / 10;
 function splitHTML() {
   const n = state.members.length;
   const cards = state.splits
@@ -795,7 +791,7 @@ function splitHTML() {
       const isBuyer = s.buyer_id === state.me.id;
       const payers = state.members.filter((m) => m.id !== s.buyer_id);
       const allPaid = payers.every((m) => s.paid.includes(m.id));
-      const share = cad(roundUpSig1(s.amount / n));
+      const share = cad(roundUpTenth(s.amount, n));
       // 全員が割り勘の対象。購入者の分は立て替えなので、ボタンは出さず最初から済み扱い
       const rows = state.members
         .map((m) => {
