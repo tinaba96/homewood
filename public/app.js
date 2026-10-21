@@ -11,8 +11,8 @@ const slotTimes = (slot) => {
 const NIGHT = 3;
 // 電気代節約のため、平日は夜・土日は終日がおすすめ（厳密なルールではない）
 const isRecommended = (d, slot) => d.getDay() === 0 || d.getDay() === 6 || slot === NIGHT; // 朝 9-12 / 昼 12-15 / 夕方 15-19 / 夜 19-23 の終わりの時刻
-const TABS = ['board', 'laundry', 'chores', 'wish', 'split', 'settings'];
-const BASE_TABS = ['wish', 'split']; // bootstrap（ほしい物・割り勘）から描く画面
+const TABS = ['board', 'laundry', 'chores', 'shop', 'settings'];
+const BASE_TABS = ['shop']; // bootstrap（ほしい物・割り勘）から描く画面
 const POST_MAX = 280;
 const KEY = {
   me: 'homewood.me',
@@ -39,7 +39,7 @@ const I18N = {
     sep: '、',
     range: (a, b) => `${a} 〜 ${b}`,
     colon: '：',
-    tabs: { board: '掲示板', laundry: '洗濯', chores: '掃除', wish: 'ほしい物', split: '割り勘', settings: '設定' },
+    tabs: { board: '掲示板', laundry: '洗濯', chores: '掃除', shop: '買い物', settings: '設定' },
     menu: 'メニュー',
     switchUser: 'ユーザーを切り替える',
     shareIcon: '共有',
@@ -192,7 +192,7 @@ const I18N = {
     sep: ', ',
     range: (a, b) => `${a} – ${b}`,
     colon: ': ',
-    tabs: { board: 'Board', laundry: 'Laundry', chores: 'Cleaning', wish: 'Wish list', split: 'Split', settings: 'Settings' },
+    tabs: { board: 'Board', laundry: 'Laundry', chores: 'Cleaning', shop: 'Shopping', settings: 'Settings' },
     menu: 'Menu',
     switchUser: 'Switch user',
     shareIcon: 'Share',
@@ -365,6 +365,7 @@ const state = {
   areas: [],
   wishes: [], // ほしい物リスト（住人なら誰でも追加できる）
   wishDraft: '', // ほしい物の入力途中の文字（再描画で消えないように）
+  shopView: 'wish', // 買い物タブで表示中の面（wish = ほしい物 / split = 割り勘）
   splits: [], // 割り勘（paid = 送金済みの住人 id の一覧）
   me: null,
   picking: false, // ユーザー選択画面を表示中
@@ -523,17 +524,21 @@ async function loadBase() {
 let seq = 0;
 async function show(tab, { silent = false } = {}) {
   const nextTab = TABS.includes(tab) ? tab : TABS[0];
-  if (nextTab !== state.tab) {
+  const entering = nextTab !== state.tab;
+  if (entering) {
     state.editing = false;
     state.draft = '';
   }
   state.tab = nextTab;
   const src = state.me && !state.picking ? source() : null;
   if (!src) {
+    // 買い物タブを開いた時だけ、表示する面を決め直す（定期更新では切り替えを保つ）
+    if (entering && nextTab === 'shop') state.shopView = defaultShopView();
     render();
     // 手動で開いた時だけ最新化（定期更新は refresh() が bootstrap を取り直す）
     if (!silent && state.me && !state.picking && BASE_TABS.includes(nextTab)) {
       await loadBase().catch(() => (state.offline = true));
+      if (entering && nextTab === 'shop') state.shopView = defaultShopView();
       render();
     }
     return;
@@ -604,7 +609,7 @@ function render() {
   }
 
   const name = picking ? 'picker' : state.tab;
-  view.innerHTML = picking ? pickerHTML() : { laundry: laundryHTML, chores: choresHTML, board: boardHTML, wish: wishPageHTML, split: splitPageHTML, settings: settingsHTML }[state.tab]();
+  view.innerHTML = picking ? pickerHTML() : { laundry: laundryHTML, chores: choresHTML, board: boardHTML, shop: shopPageHTML, settings: settingsHTML }[state.tab]();
   if (name !== lastView) {
     view.classList.remove('enter');
     void view.offsetWidth; // アニメーションを毎回かけ直す
@@ -825,7 +830,7 @@ function splitPageHTML() {
       </div>`;
     })
     .join('');
-  return `<div class="head"><div><h2>${t.splitTitle}</h2><p class="sub">${t.splitNote}</p></div></div>
+  return `<p class="sub shop-note">${t.splitNote}</p>
     ${cards || `<div class="card empty">${t.splitEmpty}</div>`}
     <form class="split-form" data-form="split">
       <input name="item" placeholder="${t.splitItemPh}" maxlength="100" autocomplete="off" aria-label="${t.splitItemPh}">
@@ -833,6 +838,25 @@ function splitPageHTML() {
       <input name="email" type="email" placeholder="${t.splitEmailPh}" autocomplete="email" aria-label="${t.splitEmailPh}">
       <button class="btn primary">${t.add}</button>
     </form>`;
+}
+
+// 買い物タブ：ほしい物と割り勘を上部で切り替える。未完了の割り勘があれば割り勘を先に開く
+const hasOpenSplit = () => state.splits.some((s) => state.members.some((m) => m.id !== s.buyer_id && !s.paid.includes(m.id)));
+const defaultShopView = () => (hasOpenSplit() ? 'split' : 'wish');
+function shopPageHTML() {
+  const isSplit = state.shopView === 'split';
+  const seg = [
+    ['wish', t.wishTitle],
+    ['split', t.splitTitle],
+  ]
+    .map(([v, label]) => {
+      const on = state.shopView === v;
+      return `<button type="button" class="${on ? 'on' : ''}" data-action="shop-view" data-view="${v}" aria-pressed="${on}">${label}</button>`;
+    })
+    .join('');
+  return `<div class="head"><div><h2>${t.tabs.shop}</h2></div></div>
+    <div class="seg shop-seg" role="group" aria-label="${t.tabs.shop}">${seg}</div>
+    ${isSplit ? splitPageHTML() : wishPageHTML()}`;
 }
 
 // ほしい物リスト（追加は誰でも、削除は追加した本人だけ）
@@ -846,7 +870,7 @@ function wishPageHTML() {
       }</li>`;
     })
     .join('');
-  return `<div class="head"><div><h2>${t.wishTitle}</h2><p class="sub">${t.wishNote}</p></div></div>
+  return `<p class="sub shop-note">${t.wishNote}</p>
   <section class="card">
     ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">${t.wishEmpty}</p>`}
     <form class="add" data-form="wish">
@@ -1292,6 +1316,10 @@ document.addEventListener('click', (e) => {
     installEvent = null;
     ev.prompt();
     return ev.userChoice.finally(render);
+  }
+  if (a === 'shop-view') {
+    state.shopView = el.dataset.view;
+    return render();
   }
   if (a === 'split-paid') {
     const id = Number(el.dataset.id);
