@@ -11,7 +11,8 @@ const slotTimes = (slot) => {
 const NIGHT = 3;
 // 電気代節約のため、平日は夜・土日は終日がおすすめ（厳密なルールではない）
 const isRecommended = (d, slot) => d.getDay() === 0 || d.getDay() === 6 || slot === NIGHT; // 朝 9-12 / 昼 12-15 / 夕方 15-19 / 夜 19-23 の終わりの時刻
-const TABS = ['board', 'laundry', 'chores', 'settings'];
+const TABS = ['board', 'laundry', 'chores', 'wish', 'split', 'settings'];
+const BASE_TABS = ['wish', 'split']; // bootstrap（ほしい物・割り勘）から描く画面
 const POST_MAX = 280;
 const KEY = {
   me: 'homewood.me',
@@ -38,7 +39,7 @@ const I18N = {
     sep: '、',
     range: (a, b) => `${a} 〜 ${b}`,
     colon: '：',
-    tabs: { board: '掲示板', laundry: '洗濯', chores: '掃除', settings: '設定' },
+    tabs: { board: '掲示板', laundry: '洗濯', chores: '掃除', wish: 'ほしい物', split: '割り勘', settings: '設定' },
     menu: 'メニュー',
     switchUser: 'ユーザーを切り替える',
     shareIcon: '共有',
@@ -191,7 +192,7 @@ const I18N = {
     sep: ', ',
     range: (a, b) => `${a} – ${b}`,
     colon: ': ',
-    tabs: { board: 'Board', laundry: 'Laundry', chores: 'Cleaning', settings: 'Settings' },
+    tabs: { board: 'Board', laundry: 'Laundry', chores: 'Cleaning', wish: 'Wish list', split: 'Split', settings: 'Settings' },
     menu: 'Menu',
     switchUser: 'Switch user',
     shareIcon: 'Share',
@@ -528,7 +529,15 @@ async function show(tab, { silent = false } = {}) {
   }
   state.tab = nextTab;
   const src = state.me && !state.picking ? source() : null;
-  if (!src) return render();
+  if (!src) {
+    render();
+    // 手動で開いた時だけ最新化（定期更新は refresh() が bootstrap を取り直す）
+    if (!silent && state.me && !state.picking && BASE_TABS.includes(nextTab)) {
+      await loadBase().catch(() => (state.offline = true));
+      render();
+    }
+    return;
+  }
 
   const token = ++seq;
   const cached = cache.get(src.key);
@@ -595,7 +604,7 @@ function render() {
   }
 
   const name = picking ? 'picker' : state.tab;
-  view.innerHTML = picking ? pickerHTML() : { laundry: laundryHTML, chores: choresHTML, board: boardHTML, settings: settingsHTML }[state.tab]();
+  view.innerHTML = picking ? pickerHTML() : { laundry: laundryHTML, chores: choresHTML, board: boardHTML, wish: wishPageHTML, split: splitPageHTML, settings: settingsHTML }[state.tab]();
   if (name !== lastView) {
     view.classList.remove('enter');
     void view.offsetWidth; // アニメーションを毎回かけ直す
@@ -775,7 +784,7 @@ function choresHTML() {
     })
     .join('');
 
-  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>${wishHTML()}${splitHTML()}`;
+  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>`;
 }
 
 // 割り勘（全員均等。送金済みの人は「送った」、全員送ったら「完了」）
@@ -783,7 +792,7 @@ const cad = (v) => `CAD ${v.toLocaleString(lang === 'en' ? 'en-US' : 'ja-JP', { 
 // 小数第1位まで切り上げ（例: 750 → 750, 333.33 → 333.4）。切り上げ分は購入者が受け取る形になる
 // 整数のまま10倍してから割る（小数の誤差で余計に切り上がらないように）
 const roundUpTenth = (amount, people) => Math.ceil((amount * 10) / people) / 10;
-function splitHTML() {
+function splitPageHTML() {
   const n = state.members.length;
   const cards = state.splits
     .map((s) => {
@@ -816,21 +825,18 @@ function splitHTML() {
       </div>`;
     })
     .join('');
-  return `<section class="wish">
-    <h3>${t.splitTitle}</h3>
-    <p class="sub">${t.splitNote}</p>
-    ${cards || `<p class="muted">${t.splitEmpty}</p>`}
+  return `<div class="head"><div><h2>${t.splitTitle}</h2><p class="sub">${t.splitNote}</p></div></div>
+    ${cards || `<div class="card empty">${t.splitEmpty}</div>`}
     <form class="split-form" data-form="split">
       <input name="item" placeholder="${t.splitItemPh}" maxlength="100" autocomplete="off" aria-label="${t.splitItemPh}">
       <input name="amount" placeholder="${t.splitAmountPh}" inputmode="numeric" autocomplete="off" aria-label="${t.splitAmountPh}">
       <input name="email" type="email" placeholder="${t.splitEmailPh}" autocomplete="email" aria-label="${t.splitEmailPh}">
       <button class="btn primary">${t.add}</button>
-    </form>
-  </section>`;
+    </form>`;
 }
 
 // ほしい物リスト（追加は誰でも、削除は追加した本人だけ）
-function wishHTML() {
+function wishPageHTML() {
   const items = state.wishes
     .map((w) => {
       const who = state.members.find((m) => m.id === w.member_id)?.name;
@@ -840,9 +846,8 @@ function wishHTML() {
       }</li>`;
     })
     .join('');
-  return `<section class="card wish">
-    <h3>${t.wishTitle}</h3>
-    <p class="sub">${t.wishNote}</p>
+  return `<div class="head"><div><h2>${t.wishTitle}</h2><p class="sub">${t.wishNote}</p></div></div>
+  <section class="card">
     ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">${t.wishEmpty}</p>`}
     <form class="add" data-form="wish">
       <input name="body" value="${esc(state.wishDraft)}" placeholder="${t.wishPh}" maxlength="100" autocomplete="off" enterkeyhint="done" aria-label="${t.wishTitle}">
