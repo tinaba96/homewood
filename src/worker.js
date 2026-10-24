@@ -17,6 +17,7 @@ const MESSAGES = {
     guideTooLong: () => 'ガイドは2000文字以内にしてください',
     wishRequired: () => '欲しい物を入力してください',
     wishTooLong: () => '100文字以内にしてください',
+    bikeTaken: () => 'その時間帯はすでに予約されています',
     splitItemRequired: () => '品名を入力してください',
     splitAmountInvalid: () => '金額は1 CAD以上の整数で入力してください',
     splitEmailInvalid: () => 'メールアドレスの形式が正しくありません',
@@ -34,6 +35,7 @@ const MESSAGES = {
     guideTooLong: () => 'Please keep the guide within 2000 characters',
     wishRequired: () => 'Please enter an item',
     wishTooLong: () => 'Please keep it within 100 characters',
+    bikeTaken: () => 'That time slot is already booked',
     splitItemRequired: () => 'Please enter an item name',
     splitAmountInvalid: () => 'Enter a whole CAD amount of 1 or more',
     splitEmailInvalid: () => 'That email address does not look right',
@@ -224,6 +226,33 @@ async function api(req, env, url) {
           )
           .bind(d, slot, member, body.level, time)
           .run();
+      }
+      return json({ ok: true });
+    }
+  }
+
+  // 自転車の予約（1台なので、時間帯ごとに先に予約した人だけ）
+  if (path === '/bike') {
+    if (method === 'GET') {
+      const from = date(url.searchParams.get('from'), 'from');
+      const to = date(url.searchParams.get('to'), 'to');
+      const { results } = await db
+        .prepare('SELECT date, slot, member_id FROM bike_reservations WHERE date BETWEEN ? AND ? ORDER BY date, slot')
+        .bind(from, to)
+        .all();
+      return json(results);
+    }
+    if (method === 'PUT') {
+      const d = date(body.date);
+      const slot = Number(body.slot);
+      if (![0, 1, 2, 3].includes(slot)) throw bad('invalid', 'slot');
+      const member = int(body.member_id, 'member_id');
+      if (body.on) {
+        const holder = await db.prepare('SELECT member_id FROM bike_reservations WHERE date = ? AND slot = ?').bind(d, slot).first();
+        if (holder && holder.member_id !== member) throw bad('bikeTaken');
+        await db.prepare('INSERT OR IGNORE INTO bike_reservations (date, slot, member_id) VALUES (?, ?, ?)').bind(d, slot, member).run();
+      } else {
+        await db.prepare('DELETE FROM bike_reservations WHERE date = ? AND slot = ? AND member_id = ?').bind(d, slot, member).run();
       }
       return json({ ok: true });
     }

@@ -66,6 +66,8 @@ const I18N = {
     ended: '終了',
     free: '空き',
     laundry: '洗濯機',
+    bike: '自転車',
+    bikeNote: '自転車は1台だけなので、同じ時間帯は先に予約した人のものです。自分の予約はもう一度押すと取り消せます。',
     tapToBook: '枠をタップして予約',
     weekLabel: (w) => (w === 0 ? '今週' : w === 1 ? '来週' : w === -1 ? '先週' : w < 0 ? `${-w}週前` : `${w}週後`),
     chores: '掃除当番',
@@ -219,6 +221,8 @@ const I18N = {
     ended: 'Over',
     free: 'Free',
     laundry: 'Laundry',
+    bike: 'Bike',
+    bikeNote: 'There is one bike, so each time slot belongs to whoever booked it first. Tap your own booking again to cancel.',
     tapToBook: 'Tap a slot to book',
     weekLabel: (w) =>
       w === 0 ? 'This week' : w === 1 ? 'Next week' : w === -1 ? 'Last week' : w < 0 ? `${-w} weeks ago` : `In ${w} weeks`,
@@ -373,6 +377,8 @@ const state = {
   laundryWeek: 0, // 今日から何週先か
   choresWeek: 0, // 今週から何週先か
   reservations: [],
+  bikes: [], // 自転車の予約（時間帯ごとに1人）
+  laundryView: 'laundry', // 洗濯タブで表示中の面（laundry = 洗濯機 / bike = 自転車）
   done: [],
   loading: false,
   offline: false,
@@ -493,6 +499,7 @@ const choresMonday = () => addDays(mondayOf(today()), state.choresWeek * 7);
 function source() {
   if (state.tab === 'laundry') {
     const { from, to } = laundryRange();
+    if (state.laundryView === 'bike') return { key: `bike:${ymd(from)}`, url: `/bike?from=${ymd(from)}&to=${ymd(to)}`, field: 'bikes' };
     return { key: `laundry:${ymd(from)}`, url: `/laundry?from=${ymd(from)}&to=${ymd(to)}`, field: 'reservations' };
   }
   if (state.tab === 'chores') {
@@ -530,6 +537,8 @@ async function show(tab, { silent = false } = {}) {
     state.draft = '';
   }
   state.tab = nextTab;
+  // 洗濯タブは開くたびに洗濯機を表示する（自転車はよく使わないので既定にしない）
+  if (entering && nextTab === 'laundry') state.laundryView = 'laundry';
   const src = state.me && !state.picking ? source() : null;
   if (!src) {
     // 買い物タブを開いた時だけ、表示する面を決め直す（定期更新では切り替えを保つ）
@@ -658,6 +667,7 @@ function pagerHTML(action, value, min, max, unit) {
 }
 
 function laundryHTML() {
+  if (state.laundryView === 'bike') return bikeHTML();
   const { from, to } = laundryRange();
   const now = new Date();
   const todayKey = ymd(now);
@@ -694,7 +704,7 @@ function laundryHTML() {
     });
   }
 
-  return `${noticeHTML()}
+  return `${noticeHTML()}${laundrySegHTML()}
     <div class="head">
       <div>
         <h2>${t.laundry}</h2>
@@ -714,6 +724,80 @@ function laundryHTML() {
       ${t.slots.map(([label, time]) => `<div class="colhead"><b>${label}</b>${time}</div>`).join('')}
       ${rows}
     </div>`;
+}
+
+// 洗濯タブの切り替え（洗濯機／自転車）
+function laundrySegHTML() {
+  const seg = [
+    ['laundry', t.laundry],
+    ['bike', t.bike],
+  ]
+    .map(([v, label]) => {
+      const on = state.laundryView === v;
+      return `<button type="button" class="${on ? 'on' : ''}" data-action="laundry-view" data-view="${v}" aria-pressed="${on}">${label}</button>`;
+    })
+    .join('');
+  return `<div class="seg tab-seg" role="group" aria-label="${t.tabs.laundry}">${seg}</div>`;
+}
+
+// 自転車（1台。同じ時間帯は先に予約した人のもの。自分の予約は押すと取り消せる）
+function bikeHTML() {
+  const { from, to } = laundryRange();
+  const now = new Date();
+  const todayKey = ymd(now);
+  const byCell = {};
+  for (const r of state.bikes) byCell[`${r.date}|${r.slot}`] = r;
+
+  let rows = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(from, i);
+    const key = ymd(d);
+    const isToday = key === todayKey;
+    const dow = d.getDay();
+    rows += `<div class="day ${isToday ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}">
+      ${md(d)}<small>${isToday ? t.today : t.wd[dow]}</small></div>`;
+    SLOT_END.forEach((end, s) => {
+      const r = byCell[`${key}|${s}`];
+      const past = key < todayKey || (isToday && now.getHours() >= end);
+      const mine = r?.member_id === state.me.id;
+      const taken = Boolean(r) && !mine;
+      const cls = ['cell', past && 'past', r && 'has-must'].filter(Boolean).join(' ');
+      const chip = r ? `<span class="chip must ${mine ? 'mine' : ''}">${esc(memberName(r.member_id))}</span>` : '';
+      rows += `<button class="${cls}" data-action="bike-slot" data-date="${key}" data-slot="${s}" data-on="${mine ? 0 : 1}" ${past || taken ? 'disabled' : ''}
+        aria-label="${esc(`${mdw(d)} ${t.slots[s][0]}${t.colon}${r ? memberName(r.member_id) : t.free}`)}">${chip || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
+    });
+  }
+
+  return `${laundrySegHTML()}
+    <div class="head">
+      <div>
+        <h2>${t.bike}</h2>
+        <p class="sub">${t.range(mdw(from), mdw(to))}</p>
+      </div>
+      ${pagerHTML('laundry-week', state.laundryWeek, 0, 3, t.unitDays)}
+    </div>
+    <p class="legend-note">${t.bikeNote}</p>
+    <div class="grid ${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
+      <div class="colhead"></div>
+      ${t.slots.map(([label, time]) => `<div class="colhead"><b>${label}</b>${time}</div>`).join('')}
+      ${rows}
+    </div>`;
+}
+
+async function toggleBike(date, slot, on) {
+  const prev = state.bikes;
+  const rest = prev.filter((r) => !(r.date === date && r.slot === slot));
+  state.bikes = on ? [...rest, { date, slot, member_id: state.me.id }] : rest;
+  render();
+  buzz();
+  try {
+    await api('/bike', { method: 'PUT', body: { date, slot, member_id: state.me.id, on } });
+    if (source()?.key) cache.set(source().key, state.bikes);
+  } catch (e) {
+    state.bikes = prev;
+    render();
+    toast(e.message);
+  }
 }
 
 function choresHTML() {
@@ -855,7 +939,7 @@ function shopPageHTML() {
     })
     .join('');
   return `<div class="head"><div><h2>${t.tabs.shop}</h2></div></div>
-    <div class="seg shop-seg" role="group" aria-label="${t.tabs.shop}">${seg}</div>
+    <div class="seg tab-seg" role="group" aria-label="${t.tabs.shop}">${seg}</div>
     ${isSplit ? splitPageHTML() : wishPageHTML()}`;
 }
 
@@ -1317,6 +1401,11 @@ document.addEventListener('click', (e) => {
     ev.prompt();
     return ev.userChoice.finally(render);
   }
+  if (a === 'laundry-view') {
+    state.laundryView = el.dataset.view;
+    return run(() => show(state.tab));
+  }
+  if (a === 'bike-slot') return toggleBike(el.dataset.date, Number(el.dataset.slot), el.dataset.on === '1');
   if (a === 'shop-view') {
     state.shopView = el.dataset.view;
     return render();
