@@ -67,7 +67,10 @@ const I18N = {
     free: '空き',
     laundry: '洗濯機',
     bike: '自転車',
-    bikeNote: '自転車は1台だけなので、同じ時間帯は先に予約した人のものです。自分の予約はもう一度押すと取り消せます。',
+    bikeNote: '自転車は2台。同じ時間帯は2人まで予約できます。「借りるかも」も枠を使います。',
+    bikeMust: '借りる',
+    bikeMaybe: '借りるかも',
+    bikeFull: 'その時間帯は2台とも予約済みです',
     tapToBook: '枠をタップして予約',
     weekLabel: (w) => (w === 0 ? '今週' : w === 1 ? '来週' : w === -1 ? '先週' : w < 0 ? `${-w}週前` : `${w}週後`),
     chores: '掃除当番',
@@ -222,7 +225,10 @@ const I18N = {
     free: 'Free',
     laundry: 'Laundry',
     bike: 'Bike',
-    bikeNote: 'There is one bike, so each time slot belongs to whoever booked it first. Tap your own booking again to cancel.',
+    bikeNote: 'There are two bikes. Up to two people can book each time slot. "Maybe" also takes a spot.',
+    bikeMust: 'Use',
+    bikeMaybe: 'Maybe',
+    bikeFull: 'Both bikes are booked for this time slot',
     tapToBook: 'Tap a slot to book',
     weekLabel: (w) =>
       w === 0 ? 'This week' : w === 1 ? 'Next week' : w === -1 ? 'Last week' : w < 0 ? `${-w} weeks ago` : `In ${w} weeks`,
@@ -409,6 +415,8 @@ const mdw = (d) => t.dayFmt(md(d), t.wd[d.getDay()]);
 const weekIndex = (mon) => Math.floor(Date.UTC(mon.getFullYear(), mon.getMonth(), mon.getDate()) / 864e5 / 7);
 const memberName = (id) => state.members.find((m) => m.id === id)?.name ?? t.moved;
 // 同じ枠の中は「絶対使う」→「使うかも」、その中で時刻順（時刻なしは後ろ）
+const BIKE_COUNT = 2; // 自転車の台数
+const bikeLabel = (level) => (level === 'maybe' ? t.bikeMaybe : t.bikeMust);
 const byLevel = (a, b) =>
   (a.level === 'maybe') - (b.level === 'maybe') || (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || '').localeCompare(b.time || '') || a.member_id - b.member_id;
 const fromTime = (time) => (time ? t.fromTime(time) : '');
@@ -746,7 +754,7 @@ function bikeHTML() {
   const now = new Date();
   const todayKey = ymd(now);
   const byCell = {};
-  for (const r of state.bikes) byCell[`${r.date}|${r.slot}`] = r;
+  for (const r of state.bikes) (byCell[`${r.date}|${r.slot}`] ??= []).push(r);
 
   let rows = '';
   for (let i = 0; i < 7; i++) {
@@ -757,14 +765,17 @@ function bikeHTML() {
     rows += `<div class="day ${isToday ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}">
       ${md(d)}<small>${isToday ? t.today : t.wd[dow]}</small></div>`;
     SLOT_END.forEach((end, s) => {
-      const r = byCell[`${key}|${s}`];
+      const list = (byCell[`${key}|${s}`] ?? []).sort(byLevel);
       const past = key < todayKey || (isToday && now.getHours() >= end);
-      const mine = r?.member_id === state.me.id;
-      const taken = Boolean(r) && !mine;
-      const cls = ['cell', past && 'past', r && 'has-must'].filter(Boolean).join(' ');
-      const chip = r ? `<span class="chip must ${mine ? 'mine' : ''}">${esc(memberName(r.member_id))}</span>` : '';
-      rows += `<button class="${cls}" data-action="bike-slot" data-date="${key}" data-slot="${s}" data-on="${mine ? 0 : 1}" ${past || taken ? 'disabled' : ''}
-        aria-label="${esc(`${mdw(d)} ${t.slots[s][0]}${t.colon}${r ? memberName(r.member_id) : t.free}`)}">${chip || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
+      const mine = list.some((r) => r.member_id === state.me.id);
+      const full = list.length >= BIKE_COUNT && !mine;
+      const cls = ['cell', past && 'past', list.some((r) => r.level === 'must') && 'has-must'].filter(Boolean).join(' ');
+      const chips = list
+        .map((r) => `<span class="chip ${r.level} ${r.member_id === state.me.id ? 'mine' : ''}">${esc(memberName(r.member_id))}</span>`)
+        .join('');
+      const said = list.map((r) => `${memberName(r.member_id)} ${bikeLabel(r.level)}`).join(t.sep) || t.free;
+      rows += `<button class="${cls}" data-action="bike-slot" data-date="${key}" data-slot="${s}" ${past || full ? 'disabled' : ''}
+        aria-label="${esc(`${mdw(d)} ${t.slots[s][0]}${t.colon}${said}`)}">${chips || (past ? '' : '<span class="plus" aria-hidden="true">+</span>')}</button>`;
     });
   }
 
@@ -784,19 +795,66 @@ function bikeHTML() {
     </div>`;
 }
 
-async function toggleBike(date, slot, on) {
+// 自転車の予約シート（洗濯と同じく「借りる／借りるかも／取り消す」）
+function openBikeSlot(date, slot) {
+  const list = state.bikes.filter((r) => r.date === date && r.slot === slot).sort(byLevel);
+  const mine = list.find((r) => r.member_id === state.me.id);
+  const full = list.length >= BIKE_COUNT && !mine;
+  const d = new Date(`${date}T00:00:00`);
+
+  const who = list.length
+    ? list.map((r) => `<span class="chip ${r.level}">${esc(memberName(r.member_id))} · ${bikeLabel(r.level)}</span>`).join('')
+    : `<span class="muted small">${t.nobody}</span>`;
+  const options = ['must', 'maybe']
+    .map((level) => {
+      const on = mine?.level === level;
+      return `<button class="opt ${level} ${on ? 'selected' : ''}" data-action="reserve" data-level="${level}" aria-pressed="${on}" ${full ? 'disabled' : ''}>
+        <i class="swatch ${level}" aria-hidden="true"></i>
+        <span><b>${bikeLabel(level)}</b></span>
+        ${on ? `<i class="tick" aria-hidden="true">${ICON.check}</i>` : ''}
+      </button>`;
+    })
+    .join('');
+
+  $('#sheet-body').innerHTML = `
+    <h3 id="sheet-title" tabindex="-1" autofocus>${mdw(d)} ${t.slots[slot][0]}</h3>
+    <div class="when">${t.slots[slot][1]}</div>
+    <div class="who-list">${who}</div>
+    ${full ? `<p class="share-note">${t.bikeFull}</p>` : ''}
+    <div class="options">${options}</div>
+    ${mine ? `<button class="btn danger block" data-action="reserve" data-level="">${t.cancelBooking}</button>` : ''}
+    <button class="btn ghost block" data-action="close">${t.close}</button>`;
+  sheet.dataset.kind = 'bike';
+  sheet.dataset.date = date;
+  sheet.dataset.slot = slot;
+  sheet.showModal();
+}
+
+// 画面を先に更新し、失敗したら元に戻す（満員で断られた時は最新の状態を取り直す）
+async function reserveBike(level) {
+  const date = sheet.dataset.date;
+  const slot = Number(sheet.dataset.slot);
   const prev = state.bikes;
-  const rest = prev.filter((r) => !(r.date === date && r.slot === slot));
-  state.bikes = on ? [...rest, { date, slot, member_id: state.me.id }] : rest;
+  const current = prev.find((r) => r.date === date && r.slot === slot && r.member_id === state.me.id);
+  sheet.close();
+  if ((current?.level ?? '') === level) return;
+
+  const key = source()?.key;
+  const rest = prev.filter((r) => !(r.date === date && r.slot === slot && r.member_id === state.me.id));
+  state.bikes = level ? [...rest, { date, slot, member_id: state.me.id, level }] : rest;
   render();
   buzz();
+  toast(level ? t.booked(bikeLabel(level), null) : t.canceled);
   try {
-    await api('/bike', { method: 'PUT', body: { date, slot, member_id: state.me.id, on } });
-    if (source()?.key) cache.set(source().key, state.bikes);
+    await api('/bike', { method: 'PUT', body: { date, slot, member_id: state.me.id, level: level || null } });
+    if (key) cache.set(key, state.bikes);
   } catch (e) {
-    state.bikes = prev;
-    render();
-    toast(e.message);
+    if (source()?.key === key) {
+      state.bikes = prev;
+      render();
+      await show(state.tab, { silent: true });
+    }
+    toast(t.saveFail(e.message));
   }
 }
 
@@ -1267,6 +1325,7 @@ function openSlot(date, slot) {
     ${mine?.level === 'must' ? `<button class="btn primary block" data-action="reserve" data-level="must" data-keep="1" hidden>${t.saveTime}</button>` : ''}
     ${mine ? `<button class="btn danger block" data-action="reserve" data-level="">${t.cancelBooking}</button>` : ''}
     <button class="btn ghost block" data-action="close">${t.close}</button>`;
+  sheet.dataset.kind = 'laundry';
   sheet.dataset.date = date;
   sheet.dataset.slot = slot;
   sheet.showModal();
@@ -1274,6 +1333,7 @@ function openSlot(date, slot) {
 
 // 画面を先に更新し、失敗したら元に戻す
 async function reserve(level) {
+  if (sheet.dataset.kind === 'bike') return reserveBike(level);
   const date = sheet.dataset.date;
   const slot = Number(sheet.dataset.slot);
   // 時刻は「絶対使う」のときだけ
@@ -1405,7 +1465,7 @@ document.addEventListener('click', (e) => {
     state.laundryView = el.dataset.view;
     return run(() => show(state.tab));
   }
-  if (a === 'bike-slot') return toggleBike(el.dataset.date, Number(el.dataset.slot), el.dataset.on === '1');
+  if (a === 'bike-slot') return openBikeSlot(el.dataset.date, Number(el.dataset.slot));
   if (a === 'shop-view') {
     state.shopView = el.dataset.view;
     return render();

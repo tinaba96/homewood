@@ -17,7 +17,7 @@ const MESSAGES = {
     guideTooLong: () => 'ガイドは2000文字以内にしてください',
     wishRequired: () => '欲しい物を入力してください',
     wishTooLong: () => '100文字以内にしてください',
-    bikeTaken: () => 'その時間帯はすでに予約されています',
+    bikeTaken: () => 'その時間帯は2台とも予約されています',
     splitItemRequired: () => '品名を入力してください',
     splitAmountInvalid: () => '金額は1 CAD以上の整数で入力してください',
     splitEmailInvalid: () => 'メールアドレスの形式が正しくありません',
@@ -35,7 +35,7 @@ const MESSAGES = {
     guideTooLong: () => 'Please keep the guide within 2000 characters',
     wishRequired: () => 'Please enter an item',
     wishTooLong: () => 'Please keep it within 100 characters',
-    bikeTaken: () => 'That time slot is already booked',
+    bikeTaken: () => 'Both bikes are already booked for that time slot',
     splitItemRequired: () => 'Please enter an item name',
     splitAmountInvalid: () => 'Enter a whole CAD amount of 1 or more',
     splitEmailInvalid: () => 'That email address does not look right',
@@ -62,6 +62,7 @@ const json = (data, status = 200) =>
   });
 
 const bad = (code, arg) => new HttpError(400, code, arg);
+const BIKE_COUNT = 2; // 自転車の台数
 
 function date(v, label = 'date') {
   if (typeof v !== 'string' || !DATE.test(v)) throw bad('date', label);
@@ -231,13 +232,16 @@ async function api(req, env, url) {
     }
   }
 
-  // 自転車の予約（1台なので、時間帯ごとに先に予約した人だけ）
+  // 自転車の予約（2台。1つの時間帯に2人まで。「借りるかも」も枠を使う）
   if (path === '/bike') {
     if (method === 'GET') {
       const from = date(url.searchParams.get('from'), 'from');
       const to = date(url.searchParams.get('to'), 'to');
       const { results } = await db
-        .prepare('SELECT date, slot, member_id FROM bike_reservations WHERE date BETWEEN ? AND ? ORDER BY date, slot')
+        .prepare(
+          `SELECT date, slot, member_id, level FROM bike_reservations WHERE date BETWEEN ? AND ?
+           ORDER BY date, slot, level = 'maybe', member_id`,
+        )
         .bind(from, to)
         .all();
       return json(results);
@@ -247,12 +251,23 @@ async function api(req, env, url) {
       const slot = Number(body.slot);
       if (![0, 1, 2, 3].includes(slot)) throw bad('invalid', 'slot');
       const member = int(body.member_id, 'member_id');
-      if (body.on) {
-        const holder = await db.prepare('SELECT member_id FROM bike_reservations WHERE date = ? AND slot = ?').bind(d, slot).first();
-        if (holder && holder.member_id !== member) throw bad('bikeTaken');
-        await db.prepare('INSERT OR IGNORE INTO bike_reservations (date, slot, member_id) VALUES (?, ?, ?)').bind(d, slot, member).run();
-      } else {
+      if (body.level == null) {
         await db.prepare('DELETE FROM bike_reservations WHERE date = ? AND slot = ? AND member_id = ?').bind(d, slot, member).run();
+      } else {
+        if (!['must', 'maybe'].includes(body.level)) throw bad('invalid', 'level');
+        // 自分以外の予約が2件あれば満員（自分の予約の変更は、枠を増やさないので通す）
+        const { n } = await db
+          .prepare('SELECT COUNT(*) AS n FROM bike_reservations WHERE date = ? AND slot = ? AND member_id != ?')
+          .bind(d, slot, member)
+          .first();
+        if (n >= BIKE_COUNT) throw bad('bikeTaken');
+        await db
+          .prepare(
+            `INSERT INTO bike_reservations (date, slot, member_id, level) VALUES (?, ?, ?, ?)
+             ON CONFLICT (date, slot, member_id) DO UPDATE SET level = excluded.level`,
+          )
+          .bind(d, slot, member, body.level)
+          .run();
       }
       return json({ ok: true });
     }
