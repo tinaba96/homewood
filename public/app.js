@@ -68,6 +68,7 @@ const I18N = {
     laundry: '洗濯機',
     bike: '自転車',
     bikeNote: '自転車は2台。同じ時間帯は2人まで予約できます。「借りるかも」も枠を使います。',
+    choresGuideNote: '掃除の仕方はよく更新されます。掃除の前に、必ず各エリアのガイドで最新の手順を確認してください。',
     bikeMust: '借りる',
     bikeMaybe: '借りるかも',
     bikeFull: 'その時間帯は2台とも予約済みです',
@@ -226,6 +227,7 @@ const I18N = {
     laundry: 'Laundry',
     bike: 'Bike',
     bikeNote: 'There are two bikes. Up to two people can book each time slot. "Maybe" also takes a spot.',
+    choresGuideNote: 'Cleaning methods are updated often. Always check the latest steps in each area guide before you clean.',
     bikeMust: 'Use',
     bikeMaybe: 'Maybe',
     bikeFull: 'Both bikes are booked for this time slot',
@@ -870,7 +872,8 @@ function choresHTML() {
         <p class="sub">${t.range(mdw(mon), `<b>${t.until(mdw(sun))}</b>`)}</p>
       </div>
       ${pagerHTML('chores-week', w, -4, 4, t.unitWeek)}
-    </div>`;
+    </div>
+    <p class="legend-note">${t.choresGuideNote}</p>`;
   if (!rows.length) {
     return `${head}<div class="card empty">${t.noAreas}<br>${t.goSettings(`<a href="#settings">${t.settings}</a>`)}</div>`;
   }
