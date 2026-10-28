@@ -69,6 +69,7 @@ const I18N = {
     bike: '自転車',
     bikeNote: '自転車は2台。同じ時間帯は2人まで予約できます。「借りるかも」も枠を使います。',
     choresGuideNote: '掃除の仕方はよく更新されます。掃除の前に、必ず各エリアのガイドで最新の手順を確認してください。',
+    guideFirst: '先に「やり方を見る」で手順を確認してください',
     bikeMust: '借りる',
     bikeMaybe: '借りるかも',
     bikeFull: 'その時間帯は2台とも予約済みです',
@@ -228,6 +229,7 @@ const I18N = {
     bike: 'Bike',
     bikeNote: 'There are two bikes. Up to two people can book each time slot. "Maybe" also takes a spot.',
     choresGuideNote: 'Cleaning methods are updated often. Always check the latest steps in each area guide before you clean.',
+    guideFirst: 'Check the steps with "How to clean" first',
     bikeMust: 'Use',
     bikeMaybe: 'Maybe',
     bikeFull: 'Both bikes are booked for this time slot',
@@ -387,6 +389,7 @@ const state = {
   reservations: [],
   bikes: [], // 自転車の予約（時間帯ごとに1人）
   laundryView: 'laundry', // 洗濯タブで表示中の面（laundry = 洗濯機 / bike = 自転車）
+  guideSeen: new Set(), // 掃除の前に手順を開いたエリア（ページを開き直すとリセット）
   done: [],
   loading: false,
   offline: false,
@@ -915,12 +918,13 @@ function choresHTML() {
         const by = done.member_id !== member.id ? esc(memberName(done.member_id)) : '';
         note = `<div class="note">${t.doneOn(by, md(parseUtc(done.done_at)))}</div>`;
       } else if (w < 0) note = `<div class="note late">${t.notDone}</div>`;
+      else if (w === 0 && locked(area)) note = `<div class="note">${t.guideFirst}</div>`;
 
       let btn = '';
       if (w <= 0) {
         btn = done
           ? `<button class="btn undo" data-action="chore" data-area="${area.id}" data-done="0" aria-label="${esc(t.undoLabel(area.name))}">${t.undo}</button>`
-          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(t.doneLabel(area.name))}">${t.done}</button>`;
+          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(t.doneLabel(area.name))}" ${locked(area) ? 'disabled' : ''}>${t.done}</button>`;
       }
       return `<div class="card chore ${isMine ? 'mine' : ''} ${done ? 'is-done' : ''} ${state.justDone === area.id ? 'pop' : ''}">
         <div class="body">
@@ -1196,6 +1200,11 @@ function guideHTML(text) {
 function openGuide(areaId) {
   const area = state.areas.find((a) => a.id === areaId);
   if (!area) return;
+  // 手順を開いたら「完了」を押せるようになる
+  if (!state.guideSeen.has(areaId)) {
+    state.guideSeen.add(areaId);
+    render();
+  }
   const text = guideText(area);
   const onlyOther = text && !(lang === 'en' ? area.guide_en : area.guide_ja);
   $('#sheet-body').innerHTML = `
@@ -1364,7 +1373,12 @@ async function reserve(level) {
   }
 }
 
+// 手順があるエリアは、掃除の前に手順を開くまで「完了」を押せない（取り消しは常に可）
+const locked = (area) => hasGuide(area) && !state.guideSeen.has(area.id);
+
 async function toggleChore(areaId, done) {
+  const area = state.areas.find((a) => a.id === areaId);
+  if (done && area && locked(area)) return toast(t.guideFirst);
   const src = source();
   const week = ymd(choresMonday());
   const prev = state.done;
