@@ -90,16 +90,20 @@ async function api(req, env, url) {
 
   // 初期表示に必要なメンバーと掃除場所
   if (path === '/bootstrap' && method === 'GET') {
-    const [members, areas, wishes, splits, paid] = await db.batch([
+    const [members, areas, wishes, splits, paid, lastDone] = await db.batch([
       db.prepare('SELECT id, name FROM members ORDER BY id'),
       db.prepare('SELECT id, name, guide_ja, guide_en, images FROM areas ORDER BY id'),
       db.prepare('SELECT id, body, member_id FROM wishes ORDER BY id'),
       db.prepare('SELECT id, item, amount, email, buyer_id FROM splits ORDER BY id'),
       db.prepare('SELECT split_id, member_id FROM split_paid'),
+      // 掃除エリアごとの最後の完了（次の週に、前回いつ誰が掃除したかを出すため）
+      db.prepare(
+        'SELECT c.area_id, c.member_id, c.done_at FROM chores_done c WHERE c.done_at = (SELECT MAX(d.done_at) FROM chores_done d WHERE d.area_id = c.area_id)',
+      ),
     ]);
     // 割り勘の送金済みメンバーを、各割り勘に付け直す
     const splitRows = splits.results.map((s) => ({ ...s, paid: paid.results.filter((p) => p.split_id === s.id).map((p) => p.member_id) }));
-    return json({ members: members.results, areas: areas.results, wishes: wishes.results, splits: splitRows });
+    return json({ members: members.results, areas: areas.results, wishes: wishes.results, splits: splitRows, lastDone: lastDone.results });
   }
 
   // 割り勘: 買った人が登録し、ほかの住人が送ったらチェックする（全員均等）

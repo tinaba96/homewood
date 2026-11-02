@@ -70,6 +70,8 @@ const I18N = {
     bikeNote: '自転車は2台。同じ時間帯は2人まで予約できます。「借りるかも」も枠を使います。',
     choresGuideNote: '掃除の仕方はよく更新されます。掃除の前に、必ず各エリアのガイドで最新の手順を確認してください。',
     guideFirst: '先に「やり方を見る」で手順を確認してください',
+    prevDone: (name, date) => `前回: ${name}さんが${date}に掃除`,
+    spreadOut: '前回の掃除からできるだけ日を開けてから掃除をお願いします',
     bikeMust: '借りる',
     bikeMaybe: '借りるかも',
     bikeFull: 'その時間帯は2台とも予約済みです',
@@ -230,6 +232,8 @@ const I18N = {
     bikeNote: 'There are two bikes. Up to two people can book each time slot. "Maybe" also takes a spot.',
     choresGuideNote: 'Cleaning methods are updated often. Always check the latest steps in each area guide before you clean.',
     guideFirst: 'Check the steps with "How to clean" first',
+    prevDone: (name, date) => `Last cleaned by ${name} on ${date}`,
+    spreadOut: 'Please leave as much time as possible since the last cleaning',
     bikeMust: 'Use',
     bikeMaybe: 'Maybe',
     bikeFull: 'Both bikes are booked for this time slot',
@@ -390,6 +394,7 @@ const state = {
   bikes: [], // 自転車の予約（時間帯ごとに1人）
   laundryView: 'laundry', // 洗濯タブで表示中の面（laundry = 洗濯機 / bike = 自転車）
   guideSeen: new Set(), // 掃除の前に手順を開いたエリア（ページを開き直すとリセット）
+  lastDone: [], // エリアごとの最後の完了（前回の掃除日の表示用）
   done: [],
   loading: false,
   offline: false,
@@ -531,6 +536,7 @@ function applyBase(data) {
   state.areas = data.areas;
   state.wishes = data.wishes ?? [];
   state.splits = data.splits ?? [];
+  state.lastDone = data.lastDone ?? [];
   const saved = Number(storage((s) => s.getItem(KEY.me)));
   state.me = state.members.find((m) => m.id === saved) ?? null;
 }
@@ -919,6 +925,12 @@ function choresHTML() {
         note = `<div class="note">${t.doneOn(by, md(parseUtc(done.done_at)))}</div>`;
       } else if (w < 0) note = `<div class="note late">${t.notDone}</div>`;
       else if (w === 0 && locked(area)) note = `<div class="note">${t.guideFirst}</div>`;
+      // 前回の掃除からできるだけ日を開けてもらう（次の週に、前の人の掃除日を見せる）
+      const prev = !done && w === 0 ? state.lastDone.find((x) => x.area_id === area.id) : null;
+      if (prev) {
+        note += `<div class="note">${t.prevDone(memberName(prev.member_id), md(parseUtc(prev.done_at)))}</div>
+          <div class="note spread">${t.spreadOut}</div>`;
+      }
 
       let btn = '';
       if (w <= 0) {
