@@ -98,7 +98,7 @@ async function api(req, env, url) {
       db.prepare('SELECT split_id, member_id FROM split_paid'),
       // 掃除エリアごとの最後の完了（次の週に、前回いつ誰が掃除したかを出すため）
       db.prepare(
-        'SELECT c.area_id, c.member_id, c.done_at FROM chores_done c WHERE c.done_at = (SELECT MAX(d.done_at) FROM chores_done d WHERE d.area_id = c.area_id)',
+        'SELECT c.area_id, c.member_id, c.week, c.done_at FROM chores_done c WHERE c.done_at = (SELECT MAX(d.done_at) FROM chores_done d WHERE d.area_id = c.area_id)',
       ),
     ]);
     // 割り勘の送金済みメンバーを、各割り勘に付け直す

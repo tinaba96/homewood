@@ -72,6 +72,7 @@ const I18N = {
     guideFirst: '先に「やり方を見る」で手順を確認してください',
     prevDone: (name, date) => `前回: ${name}さんが${date}に掃除`,
     spreadOut: '前回の掃除からできるだけ日を開けてから掃除をお願いします',
+    lastWeekOpen: (name) => `先週の分が未完了です。${name ? `${name}さんが` : '先週の担当が'}先週分を終えてから、今週の掃除をお願いします`,
     bikeMust: '借りる',
     bikeMaybe: '借りるかも',
     bikeFull: 'その時間帯は2台とも予約済みです',
@@ -234,6 +235,7 @@ const I18N = {
     guideFirst: 'Check the steps with "How to clean" first',
     prevDone: (name, date) => `Last cleaned by ${name} on ${date}`,
     spreadOut: 'Please leave as much time as possible since the last cleaning',
+    lastWeekOpen: (name) => `Last week's cleaning is not finished. ${name ? `${name} needs to finish it` : 'Last week\'s person needs to finish it'} before this week's cleaning.`,
     bikeMust: 'Use',
     bikeMaybe: 'Maybe',
     bikeFull: 'Both bikes are booked for this time slot',
@@ -874,6 +876,10 @@ function choresHTML() {
   const mon = choresMonday();
   const sun = addDays(mon, 6);
   const rows = assignments(mon);
+  // 先週の担当と完了状況（先週分が終わっていないと、今週の担当は進められない）
+  const prevMon = addDays(mon, -7);
+  const prevWeek = ymd(prevMon);
+  const prevRows = assignments(prevMon);
   const head = `${noticeHTML()}
     <div class="head">
       <div>
@@ -930,6 +936,13 @@ function choresHTML() {
       if (prev) {
         note += `<div class="note">${t.prevDone(memberName(prev.member_id), md(parseUtc(prev.done_at)))}</div>
           <div class="note spread">${t.spreadOut}</div>`;
+      }
+      // 過去に一度でも掃除があり、先週分が終わっていない時だけ出す（初めてのエリアは出さない）
+      const hasHistory = state.lastDone.some((x) => x.area_id === area.id);
+      const prevDoneThisArea = state.lastDone.some((x) => x.area_id === area.id && x.week === prevWeek);
+      if (!done && w === 0 && hasHistory && !prevDoneThisArea) {
+        const owner = prevRows.find((r) => r.area.id === area.id)?.member;
+        note += `<div class="note late">${t.lastWeekOpen(owner ? owner.name : '')}</div>`;
       }
 
       let btn = '';
