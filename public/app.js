@@ -158,6 +158,8 @@ const I18N = {
     choreAlert: (n) => `掃除が${n}件残っています`,
     choreAlertOthers: (names) => `${names}さんの掃除がまだです`,
     choreAlertGo: '掃除タブへ',
+    lastWeekAlert: (n, mine) => `${mine ? 'あなたの分を含む、' : ''}先週の掃除が${n}件残っています`,
+    lastWeekOwner: (names) => `担当: ${names} · 先に終わらせてください`,
     wishTitle: 'ほしい物',
     wishNote: '掃除道具など、欲しいものを自由に追加。必要なものは割り勘で買います。',
     wishPh: '例: 浴室用カビ取り剤',
@@ -322,6 +324,8 @@ const I18N = {
     choreAlert: (n) => `${n} cleaning ${n === 1 ? 'task' : 'tasks'} still to do`,
     choreAlertOthers: (names) => `${names} still ${names.includes(t.sep) ? 'have' : 'has'} cleaning to do`,
     choreAlertGo: 'Go to Cleaning',
+    lastWeekAlert: (n, mine) => `${mine ? 'Your ' : ''}${n} cleaning ${n === 1 ? 'task' : 'tasks'} from last week still not done`,
+    lastWeekOwner: (names) => `Assigned: ${names} · please finish these first`,
     wishTitle: 'Wish list',
     wishNote: 'Add anything you want, like cleaning supplies. Shared items are split between us.',
     wishPh: 'e.g. mold remover for bathroom',
@@ -1110,6 +1114,27 @@ function postCardHTML(m, post, likes) {
 }
 
 // 今週の掃除が残っていて締め切りが近いときだけ、掲示板の上に出す
+// 先週分が残っている時は、全員の画面で一番上に、今日の締め切りより強く出す（今週の担当が待たされるため）
+function lastWeekAlertHTML() {
+  const prevMon = addDays(mondayOf(today()), -7);
+  const prevWeek = ymd(prevMon);
+  const open = assignments(prevMon).filter(
+    (r) =>
+      state.lastDone.some((x) => x.area_id === r.area.id) && !state.lastDone.some((x) => x.area_id === r.area.id && x.week === prevWeek),
+  );
+  if (!open.length) return '';
+  const mine = open.some((r) => r.member.id === state.me.id);
+  const names = [...new Set(open.map((r) => r.member.name))].map(esc).join(t.sep);
+  return `<a class="alert urgent" href="#chores">
+    <span class="alert-icon" aria-hidden="true">${ICON.broom}</span>
+    <div class="alert-body">
+      <b>${t.lastWeekAlert(open.length, mine)}</b>
+      <span>${open.map((r) => esc(r.area.name)).join(t.sep)} · ${t.lastWeekOwner(names)}</span>
+    </div>
+    <span class="alert-go" aria-label="${t.choreAlertGo}">${ICON.right}</span>
+  </a>`;
+}
+
 function choreAlertHTML() {
   const mon = mondayOf(today());
   const left = Math.round((addDays(mon, 6) - today()) / 864e5); // 日曜まであと何日
@@ -1139,7 +1164,7 @@ function boardHTML() {
   const byMember = Object.fromEntries(posts.map((p) => [p.member_id, p]));
   // 自分を先頭に、あとは登録順
   const order = [state.me, ...state.members.filter((m) => m.id !== state.me.id)];
-  return `${noticeHTML()}${choreAlertHTML()}${hintHTML()}
+  return `${noticeHTML()}${lastWeekAlertHTML()}${choreAlertHTML()}${hintHTML()}
     <div class="head"><div><h2>${t.board}</h2><p class="sub">${t.boardNote}</p></div></div>
     <div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       ${order.map((m) => postCardHTML(m, byMember[m.id], likes)).join('')}
