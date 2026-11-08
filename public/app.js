@@ -401,6 +401,7 @@ const state = {
   laundryView: 'laundry', // 洗濯タブで表示中の面（laundry = 洗濯機 / bike = 自転車）
   guideSeen: new Set(), // 掃除の前に手順を開いたエリア（ページを開き直すとリセット）
   lastDone: [], // エリアごとの最後の完了（前回の掃除日の表示用）
+  recentDone: [], // 直近3週間の完了（週ごと。先週分が終わっているかの判定用）
   done: [],
   loading: false,
   offline: false,
@@ -543,6 +544,7 @@ function applyBase(data) {
   state.wishes = data.wishes ?? [];
   state.splits = data.splits ?? [];
   state.lastDone = data.lastDone ?? [];
+  state.recentDone = data.recentDone ?? [];
   const saved = Number(storage((s) => s.getItem(KEY.me)));
   state.me = state.members.find((m) => m.id === saved) ?? null;
 }
@@ -943,7 +945,7 @@ function choresHTML() {
       }
       // 過去に一度でも掃除があり、先週分が終わっていない時だけ出す（初めてのエリアは出さない）
       const hasHistory = state.lastDone.some((x) => x.area_id === area.id);
-      const prevDoneThisArea = state.lastDone.some((x) => x.area_id === area.id && x.week === prevWeek);
+      const prevDoneThisArea = state.recentDone.some((x) => x.area_id === area.id && x.week === prevWeek);
       if (!done && w === 0 && hasHistory && !prevDoneThisArea) {
         const owner = prevRows.find((r) => r.area.id === area.id)?.member;
         note += `<div class="note late">${t.lastWeekOpen(owner ? owner.name : '')}</div>`;
@@ -1120,7 +1122,7 @@ function lastWeekAlertHTML() {
   const prevWeek = ymd(prevMon);
   const open = assignments(prevMon).filter(
     (r) =>
-      state.lastDone.some((x) => x.area_id === r.area.id) && !state.lastDone.some((x) => x.area_id === r.area.id && x.week === prevWeek),
+      state.lastDone.some((x) => x.area_id === r.area.id) && !state.recentDone.some((x) => x.area_id === r.area.id && x.week === prevWeek),
   );
   if (!open.length) return '';
   const mine = open.some((r) => r.member.id === state.me.id);
