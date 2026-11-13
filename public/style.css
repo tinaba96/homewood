@@ -319,6 +319,10 @@ body:has(textarea:focus) .tabbar { visibility: hidden; }
 .split-form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
 .split-form .btn { min-height: 48px; justify-self: end; }
 
+/* ---------- landlord requests (cleaning tab) ---------- */
+.landlord { margin-bottom: 14px; }
+.landlord h3 { margin: 0 0 6px; font-size: 16px; font-weight: 800; }
+
 /* ---------- settings ---------- */
 .list { margin: 0 0 12px; padding: 0; list-style: none; }
 .list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--line); font-size: 16px; }

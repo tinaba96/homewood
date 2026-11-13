@@ -70,6 +70,14 @@ const I18N = {
     bikeNote: '自転車は2台。同じ時間帯は2人まで予約できます。「借りるかも」も枠を使います。',
     choresGuideNote: '掃除の仕方はよく更新されます。掃除の前に、必ず各エリアのガイドで最新の手順を確認してください。',
     guideFirst: '先に「やり方を見る」で手順を確認してください',
+    landlordTitle: '大家さんからのお願い',
+    landlordAlert: '大家さんからのお願いがあります（掃除タブ）',
+    landlordItems: [
+      '乾燥機のゴミは、気づいた時に適宜掃除する',
+      'シャワーの排水口は、気づいた人が適宜掃除する',
+      'シンクに溜まったゴミや、シンク下の生ゴミは、いっぱいになる前に頻繁に替える',
+      'シャワー後は、モップで水気をとる',
+    ],
     prevDone: (name, date) => `前回: ${name}さんが${date}に掃除`,
     spreadOut: (date) => `前の人の掃除から3日は開けて、${date}以降に掃除をお願いします`,
     lastWeekOpen: (name) => `先週の分が未完了です。${name ? `${name}さんが` : '先週の担当が'}先週分を終えてから、今週の掃除をお願いします`,
@@ -235,6 +243,14 @@ const I18N = {
     bikeNote: 'There are two bikes. Up to two people can book each time slot. "Maybe" also takes a spot.',
     choresGuideNote: 'Cleaning methods are updated often. Always check the latest steps in each area guide before you clean.',
     guideFirst: 'Check the steps with "How to clean" first',
+    landlordTitle: 'Requests from the landlord',
+    landlordAlert: 'Requests from the landlord (Cleaning tab)',
+    landlordItems: [
+      'Clean the dryer lint trap whenever you notice it',
+      'Whoever notices the shower drain cleans it',
+      'Empty the sink trash and the food waste under the sink often, before it is full',
+      'After showering, wipe up the water with a mop',
+    ],
     prevDone: (name, date) => `Last cleaned by ${name} on ${date}`,
     spreadOut: (date) => `Please wait 3 days after the previous cleaning, and clean on or after ${date}`,
     lastWeekOpen: (name) => `Last week's cleaning is not finished. ${name ? `${name} needs to finish it` : 'Last week\'s person needs to finish it'} before this week's cleaning.`,
@@ -969,7 +985,7 @@ function choresHTML() {
     })
     .join('');
 
-  return `${head}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>`;
+  return `${head}${landlordHTML()}${summary}<div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">${cards}</div>`;
 }
 
 // 割り勘（全員均等。送金済みの人は「送った」、全員送ったら「完了」）
@@ -1137,6 +1153,18 @@ function lastWeekAlertHTML() {
   </a>`;
 }
 
+// 大家さんからのお願い（掃除タブに常に出す。掲示板にも控えめに知らせる）
+function landlordHTML() {
+  return `<section class="card landlord">
+    <h3>${t.landlordTitle}</h3>
+    <ul class="list">${t.landlordItems.map((x) => `<li><span class="li-name">${esc(x)}</span></li>`).join('')}</ul>
+  </section>`;
+}
+
+function landlordAlertHTML() {
+  return `<a class="alert soft" href="#chores"><div class="alert-body"><span>${t.landlordAlert}</span></div><span class="alert-go">${ICON.right}</span></a>`;
+}
+
 function choreAlertHTML() {
   const mon = mondayOf(today());
   const left = Math.round((addDays(mon, 6) - today()) / 864e5); // 日曜まであと何日
@@ -1166,7 +1194,7 @@ function boardHTML() {
   const byMember = Object.fromEntries(posts.map((p) => [p.member_id, p]));
   // 自分を先頭に、あとは登録順
   const order = [state.me, ...state.members.filter((m) => m.id !== state.me.id)];
-  return `${noticeHTML()}${lastWeekAlertHTML()}${choreAlertHTML()}${hintHTML()}
+  return `${noticeHTML()}${lastWeekAlertHTML()}${choreAlertHTML()}${landlordAlertHTML()}${hintHTML()}
     <div class="head"><div><h2>${t.board}</h2><p class="sub">${t.boardNote}</p></div></div>
     <div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       ${order.map((m) => postCardHTML(m, byMember[m.id], likes)).join('')}
