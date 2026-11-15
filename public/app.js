@@ -73,14 +73,11 @@ const I18N = {
     landlordTitle: '大家さんからのお願い',
     landlordAlert: '大家さんからのお願いがあります（掃除タブ）',
     landlordItems: [
+      '【特に大事】ゴミの分別は必ず守る。キッチンにはリサイクルの黒いゴミ箱しかないので、燃えるゴミは各自で用意する（分別方法は壁に貼ってあります）',
       '乾燥機のゴミは、気づいた時に適宜掃除する',
       'シャワーの排水口は、気づいた人が適宜掃除する',
       'シンクに溜まったゴミや、シンク下の生ゴミは、いっぱいになる前に頻繁に替える',
       'シャワー後は、モップで水気をとる',
-    ],
-    landlordDailyTitle: '大家さんからのお願い（日々のこと）',
-    landlordDailyItems: [
-      '【特に大事】ゴミの分別は必ず守る。キッチンにはリサイクルの黒いゴミ箱しかないので、燃えるゴミは各自で用意する（分別方法は壁に貼ってあります）',
       '電気ケトルの水はBritaの水を使う（カルキが残りやすくなるため）',
     ],
     prevDone: (name, date) => `前回: ${name}さんが${date}に掃除`,
@@ -251,14 +248,11 @@ const I18N = {
     landlordTitle: 'Requests from the landlord',
     landlordAlert: 'Requests from the landlord (Cleaning tab)',
     landlordItems: [
+      '[Very important] Always sort the trash. The kitchen only has the black recycling bin, so each person brings their own bin for burnable trash (the sorting guide is posted on the wall)',
       'Clean the dryer lint trap whenever you notice it',
       'Whoever notices the shower drain cleans it',
       'Empty the sink trash and the food waste under the sink often, before it is full',
       'After showering, wipe up the water with a mop',
-    ],
-    landlordDailyTitle: 'Requests from the landlord (daily life)',
-    landlordDailyItems: [
-      '[Very important] Always sort the trash. The kitchen only has the black recycling bin, so each person brings their own bin for burnable trash (the sorting guide is posted on the wall)',
       'Use Brita-filtered water in the electric kettle (limescale builds up otherwise)',
     ],
     prevDone: (name, date) => `Last cleaned by ${name} on ${date}`,
@@ -1171,14 +1165,6 @@ function landlordHTML() {
   </section>`;
 }
 
-// 日々のお願い（ゴミ・ケトルの水）は掲示板に常に出す
-function landlordDailyHTML() {
-  return `<section class="card landlord">
-    <h3>${t.landlordDailyTitle}</h3>
-    <ul class="list">${t.landlordDailyItems.map((x) => `<li><span class="li-name">${esc(x)}</span></li>`).join('')}</ul>
-  </section>`;
-}
-
 function landlordAlertHTML() {
   return `<a class="alert soft" href="#chores"><div class="alert-body"><span>${t.landlordAlert}</span></div><span class="alert-go">${ICON.right}</span></a>`;
 }
@@ -1212,7 +1198,7 @@ function boardHTML() {
   const byMember = Object.fromEntries(posts.map((p) => [p.member_id, p]));
   // 自分を先頭に、あとは登録順
   const order = [state.me, ...state.members.filter((m) => m.id !== state.me.id)];
-  return `${noticeHTML()}${lastWeekAlertHTML()}${choreAlertHTML()}${landlordAlertHTML()}${landlordDailyHTML()}${hintHTML()}
+  return `${noticeHTML()}${lastWeekAlertHTML()}${choreAlertHTML()}${landlordAlertHTML()}${hintHTML()}
     <div class="head"><div><h2>${t.board}</h2><p class="sub">${t.boardNote}</p></div></div>
     <div class="${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
       ${order.map((m) => postCardHTML(m, byMember[m.id], likes)).join('')}
