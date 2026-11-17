@@ -956,7 +956,7 @@ function choresHTML() {
         const by = done.member_id !== member.id ? esc(memberName(done.member_id)) : '';
         note = `<div class="note">${t.doneOn(by, md(parseUtc(done.done_at)))}</div>`;
       } else if (w < 0) note = `<div class="note late">${t.notDone}</div>`;
-      else if (w === 0 && locked(area)) note = `<div class="note">${t.guideFirst}</div>`;
+      else if (w === 0 && isMine && locked(area)) note = `<div class="note">${t.guideFirst}</div>`;
       // 前回の掃除からできるだけ日を開けてもらう（次の週に、前の人の掃除日を見せる）
       const prev = !done && w === 0 ? state.lastDone.find((x) => x.area_id === area.id) : null;
       if (prev) {
@@ -975,7 +975,7 @@ function choresHTML() {
       if (w <= 0) {
         btn = done
           ? `<button class="btn undo" data-action="chore" data-area="${area.id}" data-done="0" aria-label="${esc(t.undoLabel(area.name))}">${t.undo}</button>`
-          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(t.doneLabel(area.name))}" ${locked(area) ? 'disabled' : ''}>${t.done}</button>`;
+          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(t.doneLabel(area.name))}" ${isMine && !locked(area) ? '' : 'disabled'}>${t.done}</button>`;
       }
       return `<div class="card chore ${isMine ? 'mine' : ''} ${done ? 'is-done' : ''} ${state.justDone === area.id ? 'pop' : ''}">
         <div class="body">
