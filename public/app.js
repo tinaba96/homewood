@@ -39,7 +39,7 @@ const I18N = {
     sep: '、',
     range: (a, b) => `${a} 〜 ${b}`,
     colon: '：',
-    tabs: { board: '掲示板', laundry: '洗濯', chores: '掃除', shop: '買い物', settings: '設定' },
+    tabs: { board: '掲示板', laundry: '洗濯・自転車', chores: '掃除', shop: '買い物', settings: '設定' },
     menu: 'メニュー',
     switchUser: 'ユーザーを切り替える',
     shareIcon: '共有',
@@ -214,7 +214,7 @@ const I18N = {
     sep: ', ',
     range: (a, b) => `${a} – ${b}`,
     colon: ': ',
-    tabs: { board: 'Board', laundry: 'Laundry', chores: 'Cleaning', shop: 'Shopping', settings: 'Settings' },
+    tabs: { board: 'Board', laundry: 'Laundry / Bike', chores: 'Cleaning', shop: 'Shopping', settings: 'Settings' },
     menu: 'Menu',
     switchUser: 'Switch user',
     shareIcon: 'Share',
@@ -825,6 +825,10 @@ function bikeHTML() {
         <p class="sub">${t.range(mdw(from), mdw(to))}</p>
       </div>
       ${pagerHTML('laundry-week', state.laundryWeek, 0, 3, t.unitDays)}
+    </div>
+    <div class="legend">
+      <span><i class="swatch must"></i>${bikeLabel('must')}</span>
+      <span><i class="swatch maybe"></i>${bikeLabel('maybe')}</span>
     </div>
     <p class="legend-note">${t.bikeNote}</p>
     <div class="grid ${state.loading ? 'is-loading' : ''}" aria-busy="${state.loading}">
