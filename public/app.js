@@ -104,6 +104,10 @@ const I18N = {
     doneOf: (a, b) => `${a} / ${b} 完了`,
     offList: (names) => `お休み: ${names}`,
     doneOn: (by, date) => `✓ ${by ? `${by}さんが` : ''}${date}に完了`,
+    partial: '途中まで',
+    partialLabel: (name) => `${name}を途中まで完了にする`,
+    partialOn: (by) => `◐ ${by ? `${by}さんが` : ''}途中まで完了`,
+    partialSaved: '途中まで完了にしました',
     notDone: '未完了',
     undo: '取り消す',
     undoLabel: (n) => `${n}の完了を取り消す`,
@@ -280,6 +284,10 @@ const I18N = {
     doneOf: (a, b) => `${a} / ${b} done`,
     offList: (names) => `Off: ${names}`,
     doneOn: (by, date) => `✓ Done${by ? ` by ${by}` : ''} on ${date}`,
+    partial: 'Partly',
+    partialLabel: (name) => `Mark ${name} as partly done`,
+    partialOn: (by) => `◐ Partly done${by ? ` by ${by}` : ''}`,
+    partialSaved: 'Marked as partly done',
     notDone: 'Not done',
     undo: 'Undo',
     undoLabel: (n) => `Mark ${n} as not done`,
@@ -923,7 +931,9 @@ function choresHTML() {
     return `${head}<div class="card empty">${t.noAreas}<br>${t.goSettings(`<a href="#settings">${t.settings}</a>`)}</div>`;
   }
 
-  const doneBy = Object.fromEntries(state.done.map((d) => [d.area_id, d]));
+  // 完了（done）と途中まで（partial）は分けて持つ。未完了の判定は完了だけで行う
+  const doneBy = Object.fromEntries(state.done.filter((d) => d.stage !== 'partial').map((d) => [d.area_id, d]));
+  const partialBy = Object.fromEntries(state.done.filter((d) => d.stage === 'partial').map((d) => [d.area_id, d]));
   const doneCount = rows.filter((r) => doneBy[r.area.id]).length;
   const allDone = doneCount === rows.length;
   const mine = rows.filter((r) => r.member.id === state.me.id);
@@ -954,11 +964,15 @@ function choresHTML() {
   const cards = rows
     .map(({ area, member }) => {
       const done = doneBy[area.id];
+      const partial = !done && partialBy[area.id];
       const isMine = member.id === state.me.id;
       let note = '';
       if (done) {
         const by = done.member_id !== member.id ? esc(memberName(done.member_id)) : '';
         note = `<div class="note">${t.doneOn(by, md(parseUtc(done.done_at)))}</div>`;
+      } else if (partial) {
+        const by = partial.member_id !== member.id ? esc(memberName(partial.member_id)) : '';
+        note = `<div class="note">${t.partialOn(by)}</div>`;
       } else if (w < 0) note = `<div class="note late">${t.notDone}</div>`;
       else if (w === 0 && isMine && locked(area)) note = `<div class="note">${t.guideFirst}</div>`;
       // 前回の掃除からできるだけ日を開けてもらう（次の週に、前の人の掃除日を見せる）
@@ -976,10 +990,18 @@ function choresHTML() {
       }
 
       let btn = '';
+      // 1回目で「途中まで」、2回目で「完了」。完了は担当者がガイドを開いた後だけ押せる
       if (w <= 0) {
-        btn = done
-          ? `<button class="btn undo" data-action="chore" data-area="${area.id}" data-done="0" aria-label="${esc(t.undoLabel(area.name))}">${t.undo}</button>`
-          : `<button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-done="1" aria-label="${esc(t.doneLabel(area.name))}" ${isMine && !locked(area) ? '' : 'disabled'}>${t.done}</button>`;
+        const undoBtn = `<button class="btn undo" data-action="chore" data-area="${area.id}" data-stage="" aria-label="${esc(t.undoLabel(area.name))}">${t.undo}</button>`;
+        if (done) btn = undoBtn;
+        else if (partial) {
+          btn = `<div class="btns">
+            <button class="btn ${isMine ? 'primary' : 'ghost'}" data-action="chore" data-area="${area.id}" data-stage="done" aria-label="${esc(t.doneLabel(area.name))}" ${isMine && !locked(area) ? '' : 'disabled'}>${t.done}</button>
+            ${isMine ? undoBtn : ''}
+          </div>`;
+        } else {
+          btn = `<button class="btn ghost" data-action="chore" data-area="${area.id}" data-stage="partial" aria-label="${esc(t.partialLabel(area.name))}" ${isMine ? '' : 'disabled'}>${t.partial}</button>`;
+        }
       }
       return `<div class="card chore ${isMine ? 'mine' : ''} ${done ? 'is-done' : ''} ${state.justDone === area.id ? 'pop' : ''}">
         <div class="body">
@@ -1464,21 +1486,22 @@ async function reserve(level) {
 // 手順があるエリアは、掃除の前に手順を開くまで「完了」を押せない（取り消しは常に可）
 const locked = (area) => hasGuide(area) && !state.guideSeen.has(area.id);
 
-async function toggleChore(areaId, done) {
+// stage: 'partial'（途中まで）・'done'（完了）・null（取り消し）
+async function toggleChore(areaId, stage) {
   const area = state.areas.find((a) => a.id === areaId);
-  if (done && area && locked(area)) return toast(t.guideFirst);
+  if (stage === 'done' && area && locked(area)) return toast(t.guideFirst);
   const src = source();
   const week = ymd(choresMonday());
   const prev = state.done;
   const rest = prev.filter((d) => d.area_id !== areaId);
-  state.done = done ? [...rest, { area_id: areaId, member_id: state.me.id, done_at: nowUtc() }] : rest;
-  state.justDone = done ? areaId : null;
+  state.done = stage ? [...rest, { area_id: areaId, member_id: state.me.id, done_at: nowUtc(), stage }] : rest;
+  state.justDone = stage === 'done' ? areaId : null;
   render();
   state.justDone = null;
   buzz();
-  toast(done ? t.thanks : t.undone);
+  toast(stage === 'done' ? t.thanks : stage === 'partial' ? t.partialSaved : t.undone);
   try {
-    await api('/chores', { method: 'PUT', body: { week, area_id: areaId, member_id: state.me.id, done } });
+    await api('/chores', { method: 'PUT', body: { week, area_id: areaId, member_id: state.me.id, stage } });
     if (src) cache.set(src.key, state.done);
   } catch (e) {
     if (source()?.key === src?.key) {
@@ -1555,7 +1578,7 @@ document.addEventListener('click', (e) => {
     state[a === 'laundry-week' ? 'laundryWeek' : 'choresWeek'] += Number(el.dataset.d);
     return run(() => show(state.tab));
   }
-  if (a === 'chore') return toggleChore(Number(el.dataset.area), el.dataset.done === '1');
+  if (a === 'chore') return toggleChore(Number(el.dataset.area), el.dataset.stage || null);
   if (a === 'dismiss-hint') {
     storage((s) => s.setItem(KEY.hint, '1'));
     return render();

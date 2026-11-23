@@ -98,10 +98,10 @@ async function api(req, env, url) {
       db.prepare('SELECT split_id, member_id FROM split_paid'),
       // 掃除エリアごとの最後の完了（次の週に、前回いつ誰が掃除したかを出すため）
       db.prepare(
-        'SELECT c.area_id, c.member_id, c.week, c.done_at FROM chores_done c WHERE c.done_at = (SELECT MAX(d.done_at) FROM chores_done d WHERE d.area_id = c.area_id)',
+        "SELECT c.area_id, c.member_id, c.week, c.done_at FROM chores_done c WHERE c.stage = 'done' AND c.done_at = (SELECT MAX(d.done_at) FROM chores_done d WHERE d.area_id = c.area_id AND d.stage = 'done')",
       ),
       // 直近の週ごとの完了（先週分が終わっているかを、今週の完了に邪魔されずに見るため）
-      db.prepare("SELECT area_id, week FROM chores_done WHERE week >= date('now', '-21 days')"),
+      db.prepare("SELECT area_id, week FROM chores_done WHERE stage = 'done' AND week >= date('now', '-21 days')"),
     ]);
     // 割り勘の送金済みメンバーを、各割り勘に付け直す
     const splitRows = splits.results.map((s) => ({ ...s, paid: paid.results.filter((p) => p.split_id === s.id).map((p) => p.member_id) }));
@@ -284,7 +284,7 @@ async function api(req, env, url) {
     if (method === 'GET') {
       const week = date(url.searchParams.get('week'), 'week');
       const { results } = await db
-        .prepare('SELECT area_id, member_id, done_at FROM chores_done WHERE week = ?')
+        .prepare('SELECT area_id, member_id, done_at, stage FROM chores_done WHERE week = ?')
         .bind(week)
         .all();
       return json(results);
@@ -292,13 +292,16 @@ async function api(req, env, url) {
     if (method === 'PUT') {
       const week = date(body.week, 'week');
       const area = int(body.area_id, 'area_id');
-      if (body.done) {
+      // stage: 'partial'（途中まで）・'done'（完了）・null（取り消し）。旧い画面の done=true/false も受け付ける
+      const stage = body.stage === undefined ? (body.done ? 'done' : null) : body.stage;
+      if (stage !== null && stage !== 'partial' && stage !== 'done') throw bad('invalid', 'stage');
+      if (stage) {
         await db
           .prepare(
-            `INSERT INTO chores_done (week, area_id, member_id) VALUES (?, ?, ?)
-             ON CONFLICT (week, area_id) DO UPDATE SET member_id = excluded.member_id, done_at = datetime('now')`,
+            `INSERT INTO chores_done (week, area_id, member_id, stage) VALUES (?, ?, ?, ?)
+             ON CONFLICT (week, area_id) DO UPDATE SET member_id = excluded.member_id, done_at = datetime('now'), stage = excluded.stage`,
           )
-          .bind(week, area, int(body.member_id, 'member_id'))
+          .bind(week, area, int(body.member_id, 'member_id'), stage)
           .run();
       } else {
         await db.prepare('DELETE FROM chores_done WHERE week = ? AND area_id = ?').bind(week, area).run();
@@ -315,7 +318,7 @@ async function api(req, env, url) {
       db.prepare('SELECT member_id, body, updated_at FROM posts'),
       db.prepare('SELECT owner_id, liker_id FROM likes'),
     ];
-    if (week) stmts.push(db.prepare('SELECT area_id, member_id, done_at FROM chores_done WHERE week = ?').bind(date(week, 'week')));
+    if (week) stmts.push(db.prepare("SELECT area_id, member_id, done_at FROM chores_done WHERE week = ? AND stage = 'done'").bind(date(week, 'week')));
     const [posts, likes, done] = await db.batch(stmts);
     return json({ posts: posts.results, likes: likes.results, done: done?.results ?? [] });
   }
