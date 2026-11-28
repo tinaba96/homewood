@@ -69,6 +69,7 @@ const I18N = {
     bike: '自転車',
     bikeNote: '自転車は2台。同じ時間帯は2人まで予約できます。「借りるかも」も枠を使います。',
     choresGuideNote: '掃除の仕方はよく更新されます。掃除の前に、必ず各エリアのガイドで最新の手順を確認してください。',
+    teamNote: 'ゴミ捨ては積極的に行いましょう。皆さんで協力していきましょう。',
     guideFirst: '先に「やり方を見る」で手順を確認してください',
     landlordTitle: '大家さんからのお願い',
     landlordAlert: '大家さんからのお願いがあります（掃除タブ）',
@@ -248,6 +249,7 @@ const I18N = {
     bike: 'Bike',
     bikeNote: 'There are two bikes. Up to two people can book each time slot. "Maybe" also takes a spot.',
     choresGuideNote: 'Cleaning methods are updated often. Always check the latest steps in each area guide before you clean.',
+    teamNote: 'Please take out the trash actively. Let us all work together.',
     guideFirst: 'Check the steps with "How to clean" first',
     landlordTitle: 'Requests from the landlord',
     landlordAlert: 'Requests from the landlord (Cleaning tab)',
@@ -926,7 +928,8 @@ function choresHTML() {
       </div>
       ${pagerHTML('chores-week', w, -4, 4, t.unitWeek)}
     </div>
-    <p class="legend-note">${t.choresGuideNote}</p>`;
+    <p class="legend-note">${t.choresGuideNote}</p>
+    <p class="legend-note">${t.teamNote}</p>`;
   if (!rows.length) {
     return `${head}<div class="card empty">${t.noAreas}<br>${t.goSettings(`<a href="#settings">${t.settings}</a>`)}</div>`;
   }
